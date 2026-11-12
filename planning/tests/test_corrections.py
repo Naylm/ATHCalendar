@@ -12,11 +12,10 @@ from planning.errors import (
     ValidationFailed,
     VersionConflict,
 )
-from planning.models import Event, Organizer, Period, Registration
+from planning.models import Event, Registration
 from planning.services import events as event_services
-from planning.services import organizers
+from planning.services import organizers, registrations
 from planning.services import periods as period_services
-from planning.services import registrations
 from planning.services.actors import Actor
 
 BUREAU = Actor.bureau()
@@ -39,28 +38,21 @@ class WriteTransactionTests(TransactionTestCase):
         def cb():
             calls.append(1)
 
-        with write_transaction():
-            with write_transaction():
-                transaction.on_commit(cb)
+        with write_transaction(), write_transaction():
+            transaction.on_commit(cb)
         self.assertEqual(calls, [1])
 
     def test_rollback_no_partial_writes(self):
         period = make_period()
-        with self.assertRaises(ValidationFailed):
-            with write_transaction():
-                Event.objects.create(
-                    period=period, date=date(2027, 1, 6), min_organizers=2
-                )
-                raise ValidationFailed("stop")
-        self.assertFalse(
-            Event.objects.filter(date=date(2027, 1, 6)).exists()
-        )
+        with self.assertRaises(ValidationFailed), write_transaction():
+            Event.objects.create(period=period, date=date(2027, 1, 6), min_organizers=2)
+            raise ValidationFailed("stop")
+        self.assertFalse(Event.objects.filter(date=date(2027, 1, 6)).exists())
         self.assertTrue(connection.get_autocommit())
 
     def test_non_lock_errors_not_masked(self):
-        with self.assertRaises(ValidationFailed):
-            with write_transaction():
-                raise ValidationFailed("typed")
+        with self.assertRaises(ValidationFailed), write_transaction():
+            raise ValidationFailed("typed")
 
 
 class EventValidationTests(TestCase):
@@ -79,9 +71,7 @@ class EventValidationTests(TestCase):
 
     def test_no_silent_truncation(self):
         with self.assertRaises(ValidationFailed):
-            event_services.update_event(
-                self.event.pk, actor=BUREAU, title="x" * 121
-            )
+            event_services.update_event(self.event.pk, actor=BUREAU, title="x" * 121)
         with self.assertRaises(ValidationFailed):
             event_services.create_event(
                 self.period.pk,
@@ -93,9 +83,7 @@ class EventValidationTests(TestCase):
     def test_open_cancelled_rejected(self):
         event_services.cancel_event(self.event.pk, actor=BUREAU)
         with self.assertRaises(ClosedConflict):
-            event_services.set_registrations_open(
-                self.event.pk, actor=BUREAU, is_open=True
-            )
+            event_services.set_registrations_open(self.event.pk, actor=BUREAU, is_open=True)
 
     def test_restore_forces_closed(self):
         event_services.cancel_event(self.event.pk, actor=BUREAU)
@@ -106,9 +94,7 @@ class EventValidationTests(TestCase):
 
     def test_period_wide_close_bumps_event_version(self):
         v = self.event.version
-        period_services.set_period_registrations(
-            self.period.pk, actor=BUREAU, is_open=False
-        )
+        period_services.set_period_registrations(self.period.pk, actor=BUREAU, is_open=False)
         self.event.refresh_from_db()
         self.assertGreater(self.event.version, v)
         self.assertFalse(self.event.registrations_open)
@@ -129,16 +115,16 @@ class EventValidationTests(TestCase):
         o2 = organizers.get_or_create_organizer("B2")
         other = self.period.events.get(date=date(2027, 1, 3))
         for org in (o, o2):
-            registrations.set_registration(
-                other.pk, org.pk, "active", actor=Actor.public(org)
-            )
+            registrations.set_registration(other.pk, org.pk, "active", actor=Actor.public(org))
         result = event_services.batch_update(
             [self.event.pk, other.pk], actor=BUREAU, min_organizers=3
         )
         self.assertEqual(len(result["updated"]), 2)
         with self.assertRaises(Conflict):
             event_services.batch_update(
-                [self.event.pk, other.pk], actor=BUREAU, capacity=1,
+                [self.event.pk, other.pk],
+                actor=BUREAU,
+                capacity=1,
                 min_organizers=1,
             )
         self.event.refresh_from_db()
@@ -165,9 +151,7 @@ class EventVersionContractTests(TestCase):
 
     def test_stale_event_version_409(self):
         displayed_version = self.event.version
-        event_services.update_event(
-            self.event.pk, actor=BUREAU, date_value=date(2027, 1, 6)
-        )
+        event_services.update_event(self.event.pk, actor=BUREAU, date_value=date(2027, 1, 6))
         with self.assertRaises(VersionConflict):
             registrations.set_registration(
                 self.event.pk,
@@ -204,16 +188,23 @@ class MergeCorrectionTests(TestCase):
 
     def test_note_choice_length_validated(self):
         registrations.set_registration(
-            self.event.pk, self.a.pk, "active",
-            actor=Actor.public(self.a), note="n1",
+            self.event.pk,
+            self.a.pk,
+            "active",
+            actor=Actor.public(self.a),
+            note="n1",
         )
         registrations.set_registration(
-            self.event.pk, self.b.pk, "active",
-            actor=Actor.public(self.b), note="n2",
+            self.event.pk,
+            self.b.pk,
+            "active",
+            actor=Actor.public(self.b),
+            note="n2",
         )
         with self.assertRaises(ValidationFailed):
             organizers.merge_organizers(
-                self.a.pk, self.b.pk,
+                self.a.pk,
+                self.b.pk,
                 actor=BUREAU,
                 note_choices={str(self.event.pk): "x" * 501},
             )
@@ -229,9 +220,7 @@ class MergeCorrectionTests(TestCase):
     def test_merged_reactivation_rejected(self):
         organizers.merge_organizers(self.a.pk, self.b.pk, actor=BUREAU)
         with self.assertRaises(ValidationFailed):
-            organizers.set_organizer_active(
-                self.a.pk, actor=BUREAU, active=True
-            )
+            organizers.set_organizer_active(self.a.pk, actor=BUREAU, active=True)
 
     def test_remerge_alias_rejected(self):
         organizers.merge_organizers(self.a.pk, self.b.pk, actor=BUREAU)

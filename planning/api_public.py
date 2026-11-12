@@ -1,8 +1,11 @@
+from dataclasses import replace
+
 from django.conf import settings as django_settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods
 
 from . import selectors
+from .errors import ValidationFailed
 from .permissions import (
     actor_for_request,
     limit_rate,
@@ -14,6 +17,22 @@ from .services import organizers as organizer_services
 from .services import periods as period_services
 from .services import registrations as registration_services
 from .services.actors import Actor
+from .services.validators import require_int, require_str
+
+PRIVILEGED_KEYS = {"actor", "actor_type", "role", "is_bureau", "bureau", "user"}
+
+
+def _reject_privileged(body):
+    for key in PRIVILEGED_KEYS:
+        if key in body:
+            raise ValidationFailed(
+                "Ce champ ne peut pas être défini par le client.",
+                fields={key: "Champ non autorisé."},
+            )
+
+
+def _strict_version(value, label, *, minimum):
+    return require_int(value, label, minimum=minimum, field=label)
 
 
 def _period_payload(period):
@@ -47,13 +66,9 @@ def periods_list(request):
 @require_GET
 def period_planning(request, period_id):
     period = period_services.get_period(period_id)
-    events = [
-        selectors.event_payload(event)
-        for event in selectors.period_events(period)
-    ]
-    return JsonResponse(
-        {"period": _period_payload(period), "events": events}
-    )
+    events_qs, _ = selectors.filtered_events(period, request.GET.get("filtre"))
+    events = [selectors.event_payload(event) for event in events_qs]
+    return JsonResponse({"period": _period_payload(period), "events": events})
 
 
 @service_errors
@@ -66,12 +81,7 @@ def period_revision(request, period_id):
 @require_GET
 def organizers_list(request):
     return JsonResponse(
-        {
-            "organizers": [
-                {"id": str(o.pk), "name": o.name}
-                for o in selectors.public_organizers()
-            ]
-        }
+        {"organizers": [{"id": str(o.pk), "name": o.name} for o in selectors.public_organizers()]}
     )
 
 
@@ -84,9 +94,13 @@ def organizers_list(request):
 )
 def organizer_create(request):
     body = parse_json_body(request)
-    organizer = organizer_services.get_or_create_organizer(
-        body.get("name", ""), actor=Actor.declared(body.get("name", "")[:80])
+    _reject_privileged(body)
+    name = require_str(body.get("name"), "Le pseudo", min_len=2, max_len=40, field="name")
+    actor = replace(
+        Actor.declared(name),
+        request_id=getattr(request, "request_id", "") or "",
     )
+    organizer = organizer_services.get_or_create_organizer(name, actor=actor)
     return JsonResponse(
         {"organizer": {"id": str(organizer.pk), "name": organizer.name}},
         status=201,
@@ -96,7 +110,7 @@ def organizer_create(request):
 @service_errors
 @require_GET
 def organizer_registrations(request, organizer_id):
-    organizer = organizer_services.get_organizer(organizer_id)
+    organizer = organizer_services.canonical(organizer_services.get_organizer(organizer_id))
     include_past = request.GET.get("history") == "1"
     regs = selectors.organizer_registrations(organizer, include_past=include_past)
     return JsonResponse(
@@ -132,23 +146,30 @@ def organizer_registrations(request, organizer_id):
 )
 def event_registration(request, event_id):
     body = parse_json_body(request)
+    _reject_privileged(body)
     organizer = organizer_from_body(body)
-    state = body.get("state")
     if "expected_event_version" not in body:
-        from .errors import ValidationFailed
-
         raise ValidationFailed(
             "La version de la date affichée est requise.",
             fields={"expected_event_version": "Champ manquant."},
         )
+    if "expected_version" not in body:
+        raise ValidationFailed(
+            "La version de l'inscription affichée est requise.",
+            fields={"expected_version": "Champ manquant."},
+        )
+    expected_event_version = _strict_version(
+        body["expected_event_version"], "expected_event_version", minimum=1
+    )
+    expected_version = _strict_version(body["expected_version"], "expected_version", minimum=0)
     registration = registration_services.set_registration(
         event_id,
         organizer.pk,
-        state,
+        body.get("state"),
         actor=actor_for_request(request, organizer),
         note=body.get("note"),
-        expected_version=body.get("expected_version"),
-        expected_event_version=body.get("expected_event_version"),
+        expected_version=expected_version,
+        expected_event_version=expected_event_version,
     )
     return JsonResponse(
         {
@@ -163,6 +184,28 @@ def event_registration(request, event_id):
     )
 
 
+def _strict_versions_map(versions, event_ids):
+    if not isinstance(versions, dict):
+        raise ValidationFailed(
+            "Les versions affichées sont requises pour chaque date.",
+            fields={"versions": "Objet attendu."},
+        )
+    parsed = {}
+    for raw_id in event_ids:
+        key = str(raw_id)
+        entry = versions.get(key)
+        if not isinstance(entry, dict):
+            raise ValidationFailed(
+                "Version manquante pour une date sélectionnée.",
+                fields={"versions": key},
+            )
+        parsed[key] = {
+            "event": _strict_version(entry.get("event"), "event", minimum=1),
+            "registration": _strict_version(entry.get("registration"), "registration", minimum=0),
+        }
+    return parsed
+
+
 @service_errors
 @require_http_methods(["POST"])
 @limit_rate(
@@ -172,21 +215,12 @@ def event_registration(request, event_id):
 )
 def registrations_batch(request):
     body = parse_json_body(request)
+    _reject_privileged(body)
     organizer = organizer_from_body(body)
     event_ids = body.get("event_ids")
-    if not isinstance(event_ids, list):
-        from .errors import ValidationFailed
-
-        raise ValidationFailed(
-            "Liste de dates invalide.", fields={"event_ids": "Liste attendue."}
-        )
-    versions = body.get("versions")
-    if versions is not None and not isinstance(versions, dict):
-        from .errors import ValidationFailed
-
-        raise ValidationFailed(
-            "Versions invalides.", fields={"versions": "Objet attendu."}
-        )
+    if not isinstance(event_ids, list) or not all(isinstance(eid, str) for eid in event_ids):
+        raise ValidationFailed("Liste de dates invalide.", fields={"event_ids": "Liste attendue."})
+    versions = _strict_versions_map(body.get("versions"), event_ids)
     registrations = registration_services.batch_set(
         event_ids,
         organizer.pk,

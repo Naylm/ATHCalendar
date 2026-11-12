@@ -79,9 +79,7 @@ class PublicApiTests(TestCase):
     def test_registration_requires_event_version(self):
         response = self.client.put(
             f"/api/events/{self.event.pk}/registration/",
-            data=json.dumps(
-                {"organizer_id": str(self.organizer.pk), "state": "active"}
-            ),
+            data=json.dumps({"organizer_id": str(self.organizer.pk), "state": "active"}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
@@ -95,15 +93,16 @@ class PublicApiTests(TestCase):
                     "organizer_id": str(self.organizer.pk),
                     "state": "active",
                     "expected_event_version": self.event.version,
+                    "expected_version": 0,
                 }
             ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Registration.objects.count(), 1)
-        regs = self.client.get(
-            f"/api/organizers/{self.organizer.pk}/registrations/"
-        ).json()["registrations"]
+        regs = self.client.get(f"/api/organizers/{self.organizer.pk}/registrations/").json()[
+            "registrations"
+        ]
         self.assertEqual(len(regs), 1)
         self.assertEqual(regs[0]["state"], "active")
 
@@ -123,9 +122,7 @@ class PublicApiTests(TestCase):
         self.assertEqual(response.json()["error"]["code"], "not_found")
 
     def test_method_not_allowed(self):
-        response = self.client.delete(
-            f"/api/events/{self.event.pk}/registration/"
-        )
+        response = self.client.delete(f"/api/events/{self.event.pk}/registration/")
         self.assertEqual(response.status_code, 405)
         response = self.client.post("/api/periods/")
         self.assertEqual(response.status_code, 405)

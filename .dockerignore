@@ -9,3 +9,7 @@ secrets/
 test-results/
 .ruff_cache/
 *.sqlite3*
+backups/
+playwright-report/
+.env.*
+!.env.example

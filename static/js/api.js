@@ -49,6 +49,14 @@
     el._timer = setTimeout(function () { el.hidden = true; }, 5000);
   }
 
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".js-auto-submit").forEach(function (el) {
+      el.addEventListener("change", function () {
+        if (el.form) el.form.submit();
+      });
+    });
+  });
+
   window.ath = window.ath || {};
   window.ath.apiFetch = apiFetch;
   window.ath.toast = toast;

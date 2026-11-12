@@ -90,4 +90,9 @@ urlpatterns = [
         views_bureau.password_change,
         name="bureau_password",
     ),
+    path(
+        "bureau/reglages/",
+        views_bureau.site_settings,
+        name="bureau_settings",
+    ),
 ]

@@ -7,46 +7,48 @@
   <h1>{{ period.label }}{% if period.is_archived %} <span class="tag tag-muted">Archive</span>{% endif %}</h1>
   <form method="get" class="period-select">
     <label for="period">Période</label>
-    <select id="period" name="period" onchange="this.form.submit()">
+    <select id="period" name="period" class="js-auto-submit">
       {% for p in nav.periods %}
       <option value="{{ p.id }}" {% if p.selected %}selected{% endif %}>{{ p.label }}</option>
       {% endfor %}
     </select>
     <input type="hidden" name="vue" value="{{ view }}">
+    <input type="hidden" name="filtre" value="{{ filtre }}">
   </form>
 </div>
 
 <div class="tabs" role="tablist">
-  <a class="tab {% if view == 'liste' %}active{% endif %}" href="?period={{ period.pk }}&vue=liste">Liste</a>
-  <a class="tab {% if view == 'calendrier' %}active{% endif %}" href="?period={{ period.pk }}&vue=calendrier">Calendrier</a>
+  <a class="tab {% if view == 'liste' %}active{% endif %}" href="?period={{ period.pk }}&vue=liste&filtre={{ filtre }}">Liste</a>
+  <a class="tab {% if view == 'calendrier' %}active{% endif %}" href="?period={{ period.pk }}&vue=calendrier&filtre={{ filtre }}">Calendrier</a>
 </div>
 
 <div class="filters">
-  <a class="chip" href="?period={{ period.pk }}&vue={{ view }}">À venir</a>
-  <a class="chip" href="?period={{ period.pk }}&vue={{ view }}&filtre=renfort">Renfort nécessaire</a>
-  <a class="chip" href="?period={{ period.pk }}&vue={{ view }}&filtre=toutes">Toutes</a>
+  <a class="chip {% if filtre == 'avenir' %}active{% endif %}" href="?period={{ period.pk }}&vue={{ view }}&filtre=avenir">À venir</a>
+  <a class="chip {% if filtre == 'renfort' %}active{% endif %}" href="?period={{ period.pk }}&vue={{ view }}&filtre=renfort">Renfort nécessaire</a>
+  <a class="chip {% if filtre == 'toutes' %}active{% endif %}" href="?period={{ period.pk }}&vue={{ view }}&filtre=toutes">Toutes</a>
 </div>
 
 {% if view == 'calendrier' %}
 <div id="calendar-root"
      data-period-id="{{ period.pk }}"
-     data-revision="{{ period.revision }}"></div>
+     data-revision="{{ period.revision }}"
+     data-filtre="{{ filtre }}"></div>
 <div id="day-detail" class="card" hidden></div>
 {% else %}
 <ul class="event-list" id="event-list"
     data-period-id="{{ period.pk }}"
     data-revision="{{ period.revision }}">
   {% for event in events %}
-  {% if request.GET.filtre != 'renfort' or event.payload.fill == 'needs_more' %}
   <li class="card event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}"
       data-event-id="{{ event.pk }}"
       data-version="{{ event.version }}"
       data-status="{{ event.status }}"
       data-open="{{ event.registrations_open|yesno:'true,false' }}"
-      data-past="{{ event.payload.is_past|yesno:'true,false' }}">
+      data-past="{{ event.payload.is_past|yesno:'true,false' }}"
+      data-archived="{{ period.is_archived|yesno:'true,false' }}">
     <div class="event-head">
       <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
-      <span class="tag">{{ event.payload.type_label }}</span>
+      <span class="tag {{ event.payload.type_class }}">{{ event.payload.type_label }}</span>
       {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
       {% if not event.registrations_open and event.payload.status != 'cancelled' %}<span class="tag tag-muted">Inscriptions fermées</span>{% endif %}
       {% if event.payload.is_past %}<span class="tag tag-muted">Passée</span>{% endif %}
@@ -58,20 +60,19 @@
     </p>
     <div class="event-status">
       {% if event.payload.status == 'cancelled' %}
-        <span>Annulée par le Bureau</span>
+        <span class="fill-badge fill-none">Annulée par le Bureau</span>
       {% elif event.payload.fill == 'none' %}
-        <span>Aucun organisateur</span>
+        <span class="fill-badge fill-none">Aucun organisateur</span>
       {% elif event.payload.fill == 'needs_more' %}
-        <span>Renfort nécessaire</span>
+        <span class="fill-badge fill-needs_more">Renfort nécessaire</span>
       {% else %}
-        <span>Équipe suffisante</span>
+        <span class="fill-badge fill-{{ event.payload.fill }}">Équipe suffisante</span>
       {% endif %}
       <a class="btn" href="/dates/{{ event.pk }}/">Voir / gérer</a>
       <button type="button" class="btn btn-primary" data-action="quick-register" hidden>M'inscrire</button>
     </div>
     <label class="batch-check" hidden><input type="checkbox" class="batch-select" value="{{ event.pk }}"> Sélectionner</label>
   </li>
-  {% endif %}
   {% endfor %}
 </ul>
 <div class="batch-bar">
@@ -94,7 +95,6 @@
 {% endblock %}
 {% block scripts %}
 {% if period %}
-<script src="{% static 'js/api.js' %}" defer></script>
 <script src="{% static 'js/planning.js' %}" defer></script>
 {% if view == 'calendrier' %}<script src="{% static 'js/calendar.js' %}" defer></script>{% endif %}
 {% endif %}

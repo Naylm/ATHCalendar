@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow, noarchive">
-  <title>{% block title %}ATH Calendar{% endblock %}</title>
+  <title>{% block title %}{{ ath_site_name }}{% endblock %}</title>
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body data-page="{% block page_id %}{% endblock %}">
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="/">ATH Calendar</a>
+      <a class="brand" href="/">{{ ath_site_name }}</a>
       <nav class="top-nav">
         <a href="/">Planning</a>
         <a href="/mes-inscriptions/">Mes inscriptions</a>
@@ -37,6 +37,7 @@
       <p class="muted">Choix libre : sélectionnez un pseudo existant ou créez-en un. Ce n'est pas une authentification.</p>
       <ul class="pseudo-list" id="pseudo-list"></ul>
       <form id="pseudo-create-form">
+        {% csrf_token %}
         <label for="pseudo-new-name">Nouveau pseudo</label>
         <input id="pseudo-new-name" name="name" maxlength="40" minlength="2" autocomplete="off">
         <button type="submit" class="btn">Créer et utiliser</button>

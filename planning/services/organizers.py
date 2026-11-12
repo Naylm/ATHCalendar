@@ -30,9 +30,7 @@ def alias_ids(organizer):
     frontier = [organizer.pk]
     while frontier:
         children = set(
-            Organizer.objects.filter(merged_into_id__in=frontier).values_list(
-                "pk", flat=True
-            )
+            Organizer.objects.filter(merged_into_id__in=frontier).values_list("pk", flat=True)
         )
         children -= members
         members |= children
@@ -41,9 +39,7 @@ def alias_ids(organizer):
 
 
 def _validate_name(name):
-    return require_str(
-        name, "Le pseudo", min_len=2, max_len=40, field="name"
-    )
+    return require_str(name, "Le pseudo", min_len=2, max_len=40, field="name")
 
 
 def _bump_registration_periods(regs):
@@ -89,11 +85,7 @@ def rename_organizer(organizer_id, *, actor: Actor, name):
     key = normalize_pseudo(cleaned)
     with write_transaction():
         organizer = Organizer.objects.get(pk=organizer.pk)
-        if (
-            Organizer.objects.filter(normalized_key=key)
-            .exclude(pk=organizer.pk)
-            .exists()
-        ):
+        if Organizer.objects.filter(normalized_key=key).exclude(pk=organizer.pk).exists():
             raise Conflict(
                 "Un autre pseudo possède déjà ce nom après normalisation.",
                 fields={"name": cleaned},
@@ -107,9 +99,7 @@ def rename_organizer(organizer_id, *, actor: Actor, name):
             for reg in organizer.registrations.select_related("event", "event__period")
             if not reg.event.period.is_archived
         ]
-        Registration.objects.filter(pk__in=[r.pk for r in regs]).update(
-            organizer_name=cleaned
-        )
+        Registration.objects.filter(pk__in=[r.pk for r in regs]).update(organizer_name=cleaned)
         _bump_registration_periods(regs)
         audit.log(
             actor=actor,
@@ -127,9 +117,7 @@ def set_organizer_active(organizer_id, *, actor: Actor, active):
     with write_transaction():
         organizer = Organizer.objects.get(pk=organizer.pk)
         if active and organizer.merged_into_id is not None:
-            raise ValidationFailed(
-                "Un pseudo fusionné ne peut pas être réactivé."
-            )
+            raise ValidationFailed("Un pseudo fusionné ne peut pas être réactivé.")
         if organizer.is_active != active:
             before = audit.snapshot(organizer)
             organizer.is_active = active
@@ -160,23 +148,14 @@ def merge_organizers(source_id, target_id, *, actor: Actor, note_choices=None):
         source = Organizer.objects.get(pk=source.pk)
         target = canonical(Organizer.objects.get(pk=target.pk))
         if source.merged_into_id is not None:
-            raise ValidationFailed(
-                "Ce pseudo est déjà fusionné ; choisissez son profil canonique."
-            )
+            raise ValidationFailed("Ce pseudo est déjà fusionné ; choisissez son profil canonique.")
         if source.pk == target.pk:
-            raise ValidationFailed(
-                "Impossible de fusionner un pseudo avec lui-même."
-            )
-        target_regs = {
-            reg.event_id: reg
-            for reg in Registration.objects.filter(organizer=target)
-        }
+            raise ValidationFailed("Impossible de fusionner un pseudo avec lui-même.")
+        target_regs = {reg.event_id: reg for reg in Registration.objects.filter(organizer=target)}
         conflicts = []
         movable = []
         source_regs = list(
-            Registration.objects.select_related("event", "event__period").filter(
-                organizer=source
-            )
+            Registration.objects.select_related("event", "event__period").filter(organizer=source)
         )
         for reg in source_regs:
             if reg.event.period.is_archived:
@@ -188,16 +167,13 @@ def merge_organizers(source_id, target_id, *, actor: Actor, note_choices=None):
                 conflicts.append(reg.event_id)
         if conflicts:
             raise Conflict(
-                "Des notes différentes existent sur des dates communes ; "
-                "choisir le texte final.",
+                "Des notes différentes existent sur des dates communes ; choisir le texte final.",
                 code="merge_note_conflict",
                 fields={
                     "conflicts": [
                         {
                             "event_id": str(eid),
-                            "source_note": next(
-                                r.note for r in source_regs if r.event_id == eid
-                            ),
+                            "source_note": next(r.note for r in source_regs if r.event_id == eid),
                             "target_note": target_regs[eid].note,
                         }
                         for eid in conflicts
@@ -238,9 +214,7 @@ def merge_organizers(source_id, target_id, *, actor: Actor, note_choices=None):
                 changed = True
             if changed:
                 existing.version += 1
-                existing.save(
-                    update_fields=["state", "note", "version", "updated_at"]
-                )
+                existing.save(update_fields=["state", "note", "version", "updated_at"])
             if reg.state != Registration.State.WITHDRAWN:
                 reg.state = Registration.State.WITHDRAWN
                 reg.version += 1

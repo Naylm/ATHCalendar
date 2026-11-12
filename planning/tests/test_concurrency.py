@@ -42,6 +42,7 @@ class ConcurrencyTests(SimpleTestCase):
         settings.DATABASES["default"]["NAME"] = cls.saved_name
         settings.DATABASES["default"]["OPTIONS"].update(cls.saved_options)
         shutil.rmtree(cls.tmpdir, ignore_errors=True)
+        call_command("migrate", run_syncdb=True, verbosity=0)
         super().tearDownClass()
 
     def setUp(self):

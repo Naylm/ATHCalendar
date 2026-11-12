@@ -26,6 +26,12 @@ SAFE_FIELDS = {
         "version",
     ],
     "Organizer": ["id", "name", "normalized_key", "is_active", "merged_into_id"],
+    "SiteSettings": [
+        "site_name",
+        "default_min_organizers",
+        "default_capacity",
+        "active_period_id",
+    ],
     "Registration": [
         "id",
         "event_id",
@@ -52,6 +58,7 @@ def snapshot(instance):
 
 def log(*, actor, action, target, before=None, after=None, request_id=""):
     return AuditEntry.objects.create(
+        request_id=request_id or getattr(actor, "request_id", "") or "",
         actor_type=actor.kind,
         actor_label=actor.label[:80],
         action=action,
@@ -59,5 +66,4 @@ def log(*, actor, action, target, before=None, after=None, request_id=""):
         target_id=str(getattr(target, "pk", "")),
         before=before,
         after=after,
-        request_id=request_id,
     )

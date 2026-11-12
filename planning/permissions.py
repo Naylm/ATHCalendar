@@ -1,6 +1,7 @@
 import functools
 import json
 import uuid as uuid_module
+from dataclasses import replace
 
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -13,19 +14,17 @@ from .services.organizers import get_organizer
 
 
 def is_bureau(user):
-    return bool(
-        user
-        and user.is_authenticated
-        and user.groups.filter(name="Bureau").exists()
-    )
+    return bool(user and user.is_authenticated and user.groups.filter(name="Bureau").exists())
 
 
 def actor_for_request(request, organizer=None):
     if is_bureau(request.user):
-        return Actor.bureau()
-    if organizer is not None:
-        return Actor.public(organizer)
-    return Actor.system()
+        actor = Actor.bureau()
+    elif organizer is not None:
+        actor = Actor.public(organizer)
+    else:
+        actor = Actor.system()
+    return replace(actor, request_id=getattr(request, "request_id", ""))
 
 
 def json_error(error):
@@ -48,7 +47,13 @@ def bureau_api(view):
     def wrapper(request, *args, **kwargs):
         if not is_bureau(request.user):
             return JsonResponse(
-                {"error": {"code": "forbidden", "message": "Accès réservé au Bureau.", "fields": {}}},
+                {
+                    "error": {
+                        "code": "forbidden",
+                        "message": "Accès réservé au Bureau.",
+                        "fields": {},
+                    }
+                },
                 status=403,
             )
         return view(request, *args, **kwargs)
@@ -88,9 +93,7 @@ def limit_rate(*, category, limit, window_seconds):
                 window_seconds=window_seconds,
             )
             if not allowed:
-                raise RateLimited(
-                    "Trop de requêtes ; veuillez patienter avant de réessayer."
-                )
+                raise RateLimited("Trop de requêtes ; veuillez patienter avant de réessayer.")
             return view(request, *args, **kwargs)
 
         return wrapper
@@ -102,9 +105,7 @@ def organizer_from_body(body, *, required=True):
     organizer_id = body.get("organizer_id")
     if not organizer_id:
         if required:
-            raise ValidationFailed(
-                "Pseudo requis.", fields={"organizer_id": "Pseudo manquant."}
-            )
+            raise ValidationFailed("Pseudo requis.", fields={"organizer_id": "Pseudo manquant."})
         return None
     try:
         uuid_module.UUID(str(organizer_id))

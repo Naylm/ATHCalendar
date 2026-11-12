@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count, F, Prefetch, Q
 
 from planning.models import (
     Event,
@@ -62,31 +62,71 @@ def period_events(period):
                 filter=Q(registrations__state=Registration.State.ACTIVE),
             )
         )
-        .select_related("game_type")
+        .select_related("game_type", "period")
+        .prefetch_related(
+            Prefetch(
+                "registrations",
+                queryset=Registration.objects.filter(state=Registration.State.ACTIVE).order_by(
+                    "created_at"
+                ),
+                to_attr="active_regs",
+            )
+        )
         .order_by("date")
     )
 
 
+EVENT_FILTERS = {"avenir", "renfort", "toutes"}
+
+
+def filtered_events(period, filtre=None, *, today=None):
+    today = today or paris_today()
+    if filtre not in EVENT_FILTERS:
+        filtre = "toutes" if period.is_archived else "avenir"
+    qs = period_events(period)
+    if filtre == "avenir":
+        return qs.filter(date__gte=today), filtre
+    if filtre == "renfort":
+        return (
+            qs.filter(
+                status=Event.Status.SCHEDULED,
+                date__gte=today,
+                active_registrations__lt=F("min_organizers"),
+            ),
+            filtre,
+        )
+    return qs, filtre
+
+
 def event_payload(event, today=None):
     today = today or paris_today()
+    active_regs = getattr(event, "active_regs", None)
+    if active_regs is None:
+        active_regs = event.registrations.filter(state=Registration.State.ACTIVE).order_by(
+            "created_at"
+        )
     regs = [
         {
             "organizer_id": str(reg.organizer_id),
             "organizer_name": reg.organizer_name,
             "note": reg.note,
         }
-        for reg in event.registrations.filter(
-            state=Registration.State.ACTIVE
-        ).order_by("created_at")
+        for reg in active_regs
     ]
     count = len(regs)
-    fill = "none" if count == 0 else ("needs_more" if count < event.min_organizers else "sufficient")
+    if count == 0:
+        fill = "none"
+    elif count < event.min_organizers:
+        fill = "needs_more"
+    else:
+        fill = "sufficient"
     return {
         "id": str(event.pk),
         "period_id": str(event.period_id),
         "date": event.date.isoformat(),
         "weekday": event.date.weekday(),
         "type_label": event.type_label or "À définir",
+        "type_class": event.game_type.color_class if event.game_type_id else "type-c1",
         "game_type_id": str(event.game_type_id) if event.game_type_id else None,
         "title": event.title,
         "public_note": event.public_note,
@@ -112,11 +152,9 @@ def organizer_registrations(organizer, *, include_past=False, today=None):
         .order_by("event__date")
     )
     if not include_past:
-        qs = qs.filter(event__date__gte=today)
+        qs = qs.filter(state=Registration.State.ACTIVE, event__date__gte=today)
     return qs
 
 
 def public_organizers():
-    return Organizer.objects.filter(is_active=True, merged_into__isnull=True).order_by(
-        "name"
-    )
+    return Organizer.objects.filter(is_active=True, merged_into__isnull=True).order_by("name")

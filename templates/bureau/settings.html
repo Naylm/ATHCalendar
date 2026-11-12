@@ -1,0 +1,26 @@
+{% extends "bureau/base_bureau.html" %}
+{% block title %}Réglages — ATH Calendar{% endblock %}
+{% block bureau_content %}
+<h1>Réglages du site</h1>
+<form method="post" class="form-card">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="field">
+    <label for="{{ form.site_name.id_for_label }}">{{ form.site_name.label }}</label>
+    {{ form.site_name }}
+    {% for e in form.site_name.errors %}<p class="error">{{ e }}</p>{% endfor %}
+  </div>
+  <div class="field">
+    <label for="{{ form.default_min_organizers.id_for_label }}">{{ form.default_min_organizers.label }}</label>
+    {{ form.default_min_organizers }}
+    {% for e in form.default_min_organizers.errors %}<p class="error">{{ e }}</p>{% endfor %}
+  </div>
+  <div class="field">
+    <label for="{{ form.default_capacity.id_for_label }}">{{ form.default_capacity.label }}</label>
+    {{ form.default_capacity }}
+    {% for e in form.default_capacity.errors %}<p class="error">{{ e }}</p>{% endfor %}
+  </div>
+  <p class="muted">S'applique aux nouvelles dates ; les inscriptions existantes ne changent pas.</p>
+  <button type="submit" class="btn primary">Enregistrer</button>
+</form>
+{% endblock %}

@@ -22,10 +22,27 @@ def _load_secret_key():
             )
         return secret
     if DEBUG:
-        return "dev-" + secrets.token_hex(24)
-    raise RuntimeError(
-        "DJANGO_SECRET_KEY ou DJANGO_SECRET_KEY_FILE est obligatoire en production."
-    )
+        secret_path = DATA_DIR / ".dev-secret"
+        try:
+            existing = secret_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            existing = ""
+        if existing:
+            return existing
+        generated = "dev-" + secrets.token_hex(24)
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            fd = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return secret_path.read_text(encoding="utf-8").strip()
+        import contextlib
+
+        with contextlib.suppress(OSError):
+            os.chmod(secret_path, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(generated)
+        return generated
+    raise RuntimeError("DJANGO_SECRET_KEY ou DJANGO_SECRET_KEY_FILE est obligatoire en production.")
 
 
 SECRET_KEY = _load_secret_key()
@@ -33,9 +50,10 @@ SECRET_KEY = _load_secret_key()
 _allowed_hosts_env = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
 if not DEBUG and not _allowed_hosts_env.strip():
     raise RuntimeError("DJANGO_ALLOWED_HOSTS explicite est obligatoire en production.")
-ALLOWED_HOSTS = [
-    host.strip() for host in _allowed_hosts_env.split(",") if host.strip()
-] or ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()] or [
+    "127.0.0.1",
+    "localhost",
+]
 if not DEBUG:
     for loopback in ("127.0.0.1", "localhost"):
         if loopback not in ALLOWED_HOSTS:
@@ -63,6 +81,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "planning.middleware.TrustedProxyMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -71,7 +90,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "planning.middleware.SourceIPMiddleware",
     "planning.middleware.SecurityHeadersMiddleware",
 ]
 
@@ -87,6 +105,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "planning.context_processors.ath_site",
             ],
         },
     }
@@ -113,9 +132,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
-    },
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -149,5 +166,6 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_REDIRECT_EXEMPT = [r"^healthz$"]
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

@@ -19,6 +19,7 @@
   }
 
   var store = storage();
+  var openRequest = null;
 
   function getPseudo() {
     try {
@@ -29,14 +30,26 @@
     }
   }
 
+  function notify() {
+    document.dispatchEvent(
+      new CustomEvent("ath:pseudo-changed", { detail: getPseudo() })
+    );
+  }
+
   function setPseudo(pseudo) {
-    store.setItem("ath_pseudo", JSON.stringify(pseudo));
+    try {
+      store.setItem("ath_pseudo", JSON.stringify(pseudo));
+    } catch (err) {}
     renderActingBar();
+    notify();
   }
 
   function clearPseudo() {
-    store.removeItem("ath_pseudo");
+    try {
+      store.removeItem("ath_pseudo");
+    } catch (err) {}
     renderActingBar();
+    notify();
   }
 
   function renderActingBar() {
@@ -51,52 +64,110 @@
     }
   }
 
-  function openPicker(onChosen) {
+  function focusables(modal) {
+    return Array.prototype.slice.call(
+      modal.querySelectorAll(
+        "button, input, select, textarea, a[href], [tabindex]"
+      )
+    ).filter(function (el) { return !el.disabled && !el.hidden; });
+  }
+
+  function openPicker() {
     var modal = document.getElementById("pseudo-modal");
     if (!modal) return Promise.resolve(null);
-    var list = document.getElementById("pseudo-list");
-    var error = document.getElementById("pseudo-error");
-    error.hidden = true;
-    list.innerHTML = "";
-    modal.hidden = false;
+    if (openRequest) {
+      openRequest.finish(null);
+    }
+    return new Promise(function (resolve) {
+      var list = document.getElementById("pseudo-list");
+      var error = document.getElementById("pseudo-error");
+      var form = document.getElementById("pseudo-create-form");
+      var closeBtn = document.getElementById("pseudo-close");
+      var previousFocus = document.activeElement;
+      var done = false;
 
-    return window.ath.apiFetch("/api/organizers/").then(function (data) {
-      data.organizers.forEach(function (o) {
-        var li = document.createElement("li");
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = o.name;
-        btn.addEventListener("click", function () {
-          modal.hidden = true;
-          setPseudo(o);
-          if (onChosen) onChosen(o);
+      function finish(value) {
+        if (done) return;
+        done = true;
+        openRequest = null;
+        modal.hidden = true;
+        modal.removeEventListener("keydown", onKeydown);
+        form.removeEventListener("submit", onSubmit);
+        closeBtn.removeEventListener("click", onCancel);
+        if (previousFocus && previousFocus.focus) previousFocus.focus();
+        resolve(value);
+      }
+
+      function choose(organizer) {
+        setPseudo(organizer);
+        finish(organizer);
+      }
+
+      function onCancel() { finish(null); }
+
+      function onSubmit(e) {
+        e.preventDefault();
+        error.hidden = true;
+        var name = document.getElementById("pseudo-new-name").value.trim();
+        window.ath.apiFetch("/api/organizers/create/", {
+          method: "POST",
+          body: JSON.stringify({ name: name }),
+        }).then(function (res) {
+          choose(res.organizer);
+        }).catch(function (err) {
+          error.textContent = err.message || "Création impossible.";
+          error.hidden = false;
         });
-        li.appendChild(btn);
-        list.appendChild(li);
-      });
-      return new Promise(function (resolve) {
-        var form = document.getElementById("pseudo-create-form");
-        form.onsubmit = function (e) {
+      }
+
+      function onKeydown(e) {
+        if (e.key === "Escape") {
           e.preventDefault();
-          var name = document.getElementById("pseudo-new-name").value.trim();
-          window.ath.apiFetch("/api/organizers/create/", {
-            method: "POST",
-            body: JSON.stringify({ name: name }),
-          }).then(function (res) {
-            modal.hidden = true;
-            setPseudo(res.organizer);
-            resolve(res.organizer);
-            if (onChosen) onChosen(res.organizer);
-          }).catch(function (err) {
-            error.textContent = err.message || "Création impossible.";
-            error.hidden = false;
-          });
-        };
-        var closeBtn = document.getElementById("pseudo-close");
-        closeBtn.onclick = function () {
-          modal.hidden = true;
-          resolve(getPseudo());
-        };
+          finish(null);
+          return;
+        }
+        if (e.key !== "Tab") return;
+        var items = focusables(modal);
+        if (!items.length) return;
+        var first = items[0];
+        var last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+
+      error.hidden = true;
+      list.innerHTML = "";
+      modal.hidden = false;
+      form.addEventListener("submit", onSubmit);
+      closeBtn.addEventListener("click", onCancel);
+      modal.addEventListener("keydown", onKeydown);
+      openRequest = { finish: finish };
+
+      window.ath.apiFetch("/api/organizers/").then(function (data) {
+        if (done) return;
+        data.organizers.forEach(function (o) {
+          var li = document.createElement("li");
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = o.name;
+          btn.addEventListener("click", function () { choose(o); });
+          li.appendChild(btn);
+          list.appendChild(li);
+        });
+        var focusTarget = list.querySelector("button") ||
+          document.getElementById("pseudo-new-name") || closeBtn;
+        if (focusTarget) focusTarget.focus();
+      }).catch(function (err) {
+        if (done) return;
+        error.textContent = err.message || "Chargement impossible.";
+        error.hidden = false;
+        var input = document.getElementById("pseudo-new-name");
+        if (input) input.focus();
       });
     });
   }
@@ -109,19 +180,17 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     renderActingBar();
-    var changeBtn = document.getElementById("change-pseudo");
-    if (changeBtn) {
-      changeBtn.addEventListener("click", function () { openPicker(); });
-    }
-    var second = document.getElementById("change-pseudo-2");
-    if (second) {
-      second.addEventListener("click", function () { openPicker(); });
-    }
+    ["change-pseudo", "change-pseudo-2"].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.addEventListener("click", function () { openPicker(); });
+    });
     var opener = document.getElementById("open-picker");
     if (opener) {
       opener.addEventListener("click", function () {
-        openPicker(function (o) {
-          window.location.href = "/mes-inscriptions/?organizer=" + o.id;
+        openPicker().then(function (o) {
+          if (o) {
+            window.location.href = "/mes-inscriptions/?organizer=" + o.id;
+          }
         });
       });
     }

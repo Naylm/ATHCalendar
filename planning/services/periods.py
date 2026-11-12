@@ -41,9 +41,11 @@ def weekend_dates(start_date, end_date):
         )
     days = []
     current = start_date
-    while current <= end_date:
+    while True:
         if current.weekday() in WEEKEND_DAYS:
             days.append(current)
+        if current >= end_date:
+            break
         current += timedelta(days=1)
     return days
 
@@ -61,9 +63,7 @@ def preview_period(*, start_date, end_date):
     overlaps = [
         {
             "date": day,
-            "periods": [
-                p.label for p in others if p.start_date <= day <= p.end_date
-            ],
+            "periods": [p.label for p in others if p.start_date <= day <= p.end_date],
         }
         for day in days
     ]
@@ -104,9 +104,7 @@ def bump_revision(period):
 
 
 def _validated_label(label):
-    return require_str(
-        label, "Le libellé de période", min_len=1, max_len=120, field="label"
-    )
+    return require_str(label, "Le libellé de période", min_len=1, max_len=120, field="label")
 
 
 def create_period(
@@ -147,8 +145,7 @@ def create_period(
                 code="overlap",
                 fields={
                     "overlaps": [
-                        {"date": str(o["date"]), "periods": o["periods"]}
-                        for o in overlaps
+                        {"date": str(o["date"]), "periods": o["periods"]} for o in overlaps
                     ]
                 },
             )
@@ -184,18 +181,31 @@ def create_period(
         return period
 
 
-def complete_missing_weekends(period_id, *, actor: Actor):
+def missing_weekend_dates(period):
+    existing = set(period.events.values_list("date", flat=True))
+    return [day for day in weekend_dates(period.start_date, period.end_date) if day not in existing]
+
+
+def complete_missing_weekends(period_id, *, actor: Actor, selected_dates=None):
     period = get_period(period_id)
     _require_bureau(actor)
+    if selected_dates is not None:
+        selected_dates = {require_date(d, "Date") for d in selected_dates}
     with write_transaction():
         period = Period.objects.get(pk=period.pk)
         _require_not_archived(period)
         existing = set(period.events.values_list("date", flat=True))
         missing = [
-            day
-            for day in weekend_dates(period.start_date, period.end_date)
-            if day not in existing
+            day for day in weekend_dates(period.start_date, period.end_date) if day not in existing
         ]
+        if selected_dates is not None:
+            if not selected_dates.issubset(set(missing)):
+                raise ValidationFailed(
+                    "Certaines dates sélectionnées ne sont pas des week-ends "
+                    "manquants de cette période.",
+                    fields={"dates": "Sélection invalide."},
+                )
+            missing = sorted(selected_dates)
         if missing:
             settings = SiteSettings.get()
             Event.objects.bulk_create(
@@ -232,9 +242,7 @@ def update_period(
     period = get_period(period_id)
     _require_bureau(actor)
     if expected_version is not None:
-        expected_version = require_int(
-            expected_version, "Version", minimum=0, field="version"
-        )
+        expected_version = require_int(expected_version, "Version", minimum=0, field="version")
     if label is not None:
         label = _validated_label(label)
     if start_date is not None:
@@ -257,13 +265,10 @@ def update_period(
             )
         excluded = sorted(
             period.events.filter(date__lt=new_start).values_list("date", flat=True)
-        ) + sorted(
-            period.events.filter(date__gt=new_end).values_list("date", flat=True)
-        )
+        ) + sorted(period.events.filter(date__gt=new_end).values_list("date", flat=True))
         if excluded:
             raise Conflict(
-                "Ces bornes excluraient des dates existantes ; "
-                "aucune date n'a été perdue.",
+                "Ces bornes excluraient des dates existantes ; aucune date n'a été perdue.",
                 code="bounds_exclude_events",
                 fields={"excluded_dates": [str(d) for d in excluded]},
             )
@@ -311,9 +316,7 @@ def archive(period_id, *, actor: Actor):
             period.archived_at = timezone.now()
             period.version += 1
             period.revision += 1
-            period.save(
-                update_fields=["archived_at", "version", "revision", "updated_at"]
-            )
+            period.save(update_fields=["archived_at", "version", "revision", "updated_at"])
             settings = SiteSettings.get()
             if settings.active_period_id == period.pk:
                 settings.active_period = None
@@ -338,9 +341,7 @@ def reopen(period_id, *, actor: Actor):
             period.archived_at = None
             period.version += 1
             period.revision += 1
-            period.save(
-                update_fields=["archived_at", "version", "revision", "updated_at"]
-            )
+            period.save(update_fields=["archived_at", "version", "revision", "updated_at"])
             audit.log(
                 actor=actor,
                 action="period.reopen",
@@ -359,9 +360,7 @@ def set_period_registrations(period_id, *, actor: Actor, is_open):
         period = Period.objects.get(pk=period.pk)
         _require_not_archived(period)
         changed = list(
-            period.events.filter(status=Event.Status.SCHEDULED).exclude(
-                registrations_open=is_open
-            )
+            period.events.filter(status=Event.Status.SCHEDULED).exclude(registrations_open=is_open)
         )
         for event in changed:
             event.registrations_open = is_open
@@ -371,9 +370,7 @@ def set_period_registrations(period_id, *, actor: Actor, is_open):
             bump_revision(period)
         audit.log(
             actor=actor,
-            action=(
-                "period.registrations_open" if is_open else "period.registrations_close"
-            ),
+            action=("period.registrations_open" if is_open else "period.registrations_close"),
             target=period,
             after={"changed_events": [str(e.pk) for e in changed]},
         )
@@ -387,3 +384,33 @@ def set_default_min_organizers(value, *, actor: Actor):
     settings.default_min_organizers = value
     settings.save(update_fields=["default_min_organizers"])
     return settings
+
+
+def update_settings(*, actor: Actor, site_name, default_min_organizers, default_capacity):
+    _require_bureau(actor)
+    site_name = require_str(site_name, "Le nom du site", min_len=1, max_len=120, field="site_name")
+    default_min_organizers = require_int(
+        default_min_organizers, "Le minimum par défaut", minimum=1, field="default_min_organizers"
+    )
+    if default_capacity is not None:
+        default_capacity = require_int(
+            default_capacity,
+            "La capacité par défaut",
+            minimum=default_min_organizers,
+            field="default_capacity",
+        )
+    with write_transaction():
+        settings = SiteSettings.objects.get(pk=SiteSettings.get().pk)
+        before = audit.snapshot(settings)
+        settings.site_name = site_name
+        settings.default_min_organizers = default_min_organizers
+        settings.default_capacity = default_capacity
+        settings.save()
+        audit.log(
+            actor=actor,
+            action="settings.update",
+            target=settings,
+            before=before,
+            after=audit.snapshot(settings),
+        )
+        return settings

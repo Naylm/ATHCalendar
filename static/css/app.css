@@ -13,6 +13,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -98,6 +100,26 @@ a { color: var(--olive-dark); }
 
 .muted { color: var(--muted); }
 
+.fill-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+.fill-none { background: #f3d9d5; color: var(--danger); }
+.fill-needs_more { background: #f4e8cf; color: #7a5a14; }
+.fill-sufficient { background: #dde5c9; color: var(--olive-dark); }
+
+.type-c1 { background: #6b7c4a; }
+.type-c2 { background: #b08a3e; }
+.type-c3 { background: #526777; }
+.type-c4 { background: #60766b; }
+.type-c5 { background: #8a5b55; }
+
+#acting-name, .organizer-list, .organizers-inline, .event-title, h1 {
+  overflow-wrap: anywhere;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -166,6 +188,7 @@ select, input, textarea {
   min-height: 44px;
   background: #fff;
   color: var(--ink);
+  max-width: 100%;
 }
 input[type="checkbox"] { min-height: 0; width: 20px; height: 20px; }
 
@@ -270,7 +293,10 @@ form p input, form p select, form p textarea { width: 100%; }
 .cal-day.needs_more { border-color: var(--amber); }
 .cal-day.sufficient { border-color: var(--olive); }
 .cal-day.closed .flag, .cal-day.cancelled .flag { color: var(--danger); font-size: 0.7rem; display: block; }
+.cal-day.today { border-color: var(--amber); border-width: 2px; }
+.cal-day.selected { outline: 2px solid var(--olive-dark); }
 .cal-month-nav { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
+.cal-month-nav strong { text-transform: capitalize; }
 
 .batch-bar { margin: 14px 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .batch-check { display: block; margin-top: 8px; }

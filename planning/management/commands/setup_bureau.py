@@ -16,9 +16,7 @@ class Command(BaseCommand):
             self.stdout.write("Création du compte Bureau.")
             user = User(username="bureau")
         else:
-            self.stdout.write(
-                "Le compte Bureau existe ; le mot de passe va être remplacé."
-            )
+            self.stdout.write("Le compte Bureau existe ; le mot de passe va être remplacé.")
         password1 = getpass.getpass("Nouveau mot de passe du Bureau : ")
         password2 = getpass.getpass("Confirmation : ")
         if password1 != password2:

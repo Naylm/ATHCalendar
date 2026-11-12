@@ -1,5 +1,6 @@
 import csv
-import uuid
+import json
+from datetime import date
 
 from django.conf import settings as django_settings
 from django.contrib import messages
@@ -11,7 +12,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from . import forms, selectors
-from .errors import Conflict, ServiceError
+from .errors import Conflict, ServiceError, ValidationFailed
 from .middleware import source_key
 from .models import (
     AuditEntry,
@@ -27,6 +28,7 @@ from .services import events as event_services
 from .services import organizers as organizer_services
 from .services import periods as period_services
 from .services import registrations as registration_services
+from .services import types as type_services
 
 
 def _flash_error(request, exc):
@@ -52,9 +54,7 @@ def bureau_login(request):
             window_seconds=django_settings.BUREAU_LOGIN_WINDOW,
         )
         if not allowed:
-            messages.error(
-                request, "Trop de tentatives ; veuillez réessayer plus tard."
-            )
+            messages.error(request, "Trop de tentatives ; veuillez réessayer plus tard.")
         else:
             user = authenticate(
                 request,
@@ -77,17 +77,13 @@ def bureau_logout(request):
 @bureau_page
 @require_GET
 def dashboard(request):
-    periods = list(
-        Period.objects.annotate(event_count=Count("events")).order_by("start_date")
-    )
+    periods = list(Period.objects.annotate(event_count=Count("events")).order_by("start_date"))
     for period in periods:
         period.understaffed = sum(
             1
             for event in period.events.all()
             if event.status == Event.Status.SCHEDULED
-            and event.registrations.filter(
-                state=Registration.State.ACTIVE
-            ).count()
+            and event.registrations.filter(state=Registration.State.ACTIVE).count()
             < event.min_organizers
         )
     return render(
@@ -100,7 +96,21 @@ def dashboard(request):
 @bureau_page
 @require_http_methods(["GET", "POST"])
 def period_create(request):
-    form = forms.PeriodCreateForm(request.POST or None)
+    initial = {}
+    if request.method == "GET":
+        today = timezone.localdate()
+        semestre = request.GET.get("semestre")
+        if semestre == "1":
+            initial = {
+                "start_date": date(today.year, 1, 1),
+                "end_date": date(today.year, 6, 30),
+            }
+        elif semestre == "2":
+            initial = {
+                "start_date": date(today.year, 7, 1),
+                "end_date": date(today.year, 12, 31),
+            }
+    form = forms.PeriodCreateForm(request.POST or None, initial=initial or None)
     preview = None
     if request.method == "POST" and form.is_valid():
         action = request.POST.get("action", "preview")
@@ -109,7 +119,7 @@ def period_create(request):
             end_date=form.cleaned_data["end_date"],
         )
         if action == "create":
-            if not form.cleaned_data["selected_dates"]:
+            if not form.cleaned_data["previewed"]:
                 messages.error(
                     request,
                     "Prévisualisez les week-ends avant de créer le planning.",
@@ -125,7 +135,7 @@ def period_create(request):
                     label=form.cleaned_data["label"],
                     start_date=form.cleaned_data["start_date"],
                     end_date=form.cleaned_data["end_date"],
-                    creation_key=form.cleaned_data["creation_key"] or uuid.uuid4(),
+                    creation_key=form.cleaned_data["creation_key"],
                     selected_dates=form.cleaned_data["selected_dates"],
                     confirm_overlap=form.cleaned_data["confirm_overlap"],
                 )
@@ -173,9 +183,20 @@ def period_detail(request, period_id):
             elif action == "reopen":
                 period_services.reopen(period.pk, actor=_bureau_actor(request))
             elif action == "generate_missing":
-                period_services.complete_missing_weekends(
-                    period.pk, actor=_bureau_actor(request)
-                )
+                try:
+                    chosen = [
+                        date.fromisoformat(value) for value in request.POST.getlist("missing_dates")
+                    ]
+                except ValueError:
+                    raise ValidationFailed("Sélection de dates invalide.") from None
+                if not chosen:
+                    messages.info(request, "Aucune date cochée ; rien n'a été créé.")
+                else:
+                    period_services.complete_missing_weekends(
+                        period.pk,
+                        actor=_bureau_actor(request),
+                        selected_dates=chosen,
+                    )
             elif action == "close_all":
                 period_services.set_period_registrations(
                     period.pk, actor=_bureau_actor(request), is_open=False
@@ -191,6 +212,12 @@ def period_detail(request, period_id):
     events = list(selectors.period_events(period))
     for event in events:
         event.payload = selectors.event_payload(event)
+    missing_dates = [] if period.is_archived else period_services.missing_weekend_dates(period)
+    batch_form = forms.EventsBatchForm(
+        period=period,
+        types=GameType.objects.filter(is_active=True),
+        initial={"versions_json": json.dumps({str(event.pk): event.version for event in events})},
+    )
     form = forms.PeriodEditForm(
         initial={
             "label": period.label,
@@ -207,9 +234,14 @@ def period_detail(request, period_id):
             "events": events,
             "form": form,
             "event_form": forms.EventForm(
-                initial={"min_organizers": 2}
+                initial={
+                    "min_organizers": SiteSettings.get().default_min_organizers,
+                    "capacity": SiteSettings.get().default_capacity,
+                }
             ),
             "game_types": GameType.objects.filter(is_active=True),
+            "missing_dates": missing_dates,
+            "batch_form": batch_form,
         },
     )
 
@@ -226,9 +258,7 @@ def event_create(request, period_id):
                 actor=_bureau_actor(request),
                 date_value=form.cleaned_data["date"],
                 game_type_id=(
-                    form.cleaned_data["game_type"].pk
-                    if form.cleaned_data["game_type"]
-                    else None
+                    form.cleaned_data["game_type"].pk if form.cleaned_data["game_type"] else None
                 ),
                 title=form.cleaned_data["title"],
                 public_note=form.cleaned_data["public_note"],
@@ -293,7 +323,7 @@ def event_edit(request, event_id):
                         reg_form.cleaned_data["organizer"],
                         reg_form.cleaned_data["state"],
                         actor=_bureau_actor(request),
-                        note=reg_form.cleaned_data["note"] or None,
+                        note=reg_form.cleaned_data["note"],
                     )
             if action != "update":
                 return redirect(f"/bureau/dates/{event.pk}/")
@@ -332,43 +362,47 @@ def event_edit(request, event_id):
 def events_batch(request, period_id):
     try:
         period = period_services.get_period(period_id)
-        ids = request.POST.getlist("event_ids")
+        form = forms.EventsBatchForm(
+            request.POST,
+            period=period,
+            types=GameType.objects.filter(is_active=True),
+        )
+        if not form.is_valid():
+            messages.error(request, "Paramètres groupés invalides.")
+            return redirect(f"/bureau/periodes/{period_id}/")
+        capacity_mode = form.cleaned_data["capacity_mode"]
+        capacity = event_services.UNSET
+        if capacity_mode == "unlimited":
+            capacity = None
+        elif capacity_mode == "value":
+            capacity = form.cleaned_data["capacity_value"]
+            if capacity is None:
+                messages.error(request, "Indiquez une valeur de capacité.")
+                return redirect(f"/bureau/periodes/{period_id}/")
         result = event_services.batch_update(
-            ids,
+            form.cleaned_data["event_ids"],
             actor=_bureau_actor(request),
-            game_type_id=(
-                request.POST["game_type"]
-                if "game_type" in request.POST and request.POST["game_type"]
-                else event_services.UNSET
-            ),
-            min_organizers=(
-                int(request.POST["min_organizers"])
-                if request.POST.get("min_organizers")
-                else None
-            ),
-            capacity=(
-                int(request.POST["capacity"])
-                if request.POST.get("capacity")
-                else event_services.UNSET
-            ),
+            game_type_id=form.cleaned_data["game_type"],
+            min_organizers=form.cleaned_data["min_organizers"],
+            capacity=capacity,
             registrations_open=(
-                {"open": True, "close": False}.get(request.POST.get("registrations"))
-                if request.POST.get("registrations")
+                {"open": True, "close": False}.get(form.cleaned_data["registrations"])
+                if form.cleaned_data["registrations"]
                 else None
             ),
             cancel=(
-                {"cancel": True, "restore": False}.get(request.POST.get("status"))
-                if request.POST.get("status")
+                {"cancel": True, "restore": False}.get(form.cleaned_data["status"])
+                if form.cleaned_data["status"]
                 else None
             ),
+            expected_versions=form.cleaned_data["versions_json"],
         )
         for skipped in result["skipped"]:
             messages.warning(request, skipped["reason"])
-    except (ServiceError, ValueError) as exc:
-        if isinstance(exc, ServiceError):
-            _flash_error(request, exc)
-        else:
-            messages.error(request, "Paramètres groupés invalides.")
+        if result["updated"]:
+            messages.success(request, f"{len(result['updated'])} date(s) mise(s) à jour.")
+    except ServiceError as exc:
+        _flash_error(request, exc)
     return redirect(f"/bureau/periodes/{period_id}/")
 
 
@@ -426,12 +460,10 @@ def organizers_list(request):
                 organizer_services.get_organizer(request.GET["fusion_target"])
             )
             shared = []
-            target_regs = {
-                r.event_id: r for r in Registration.objects.filter(organizer=target)
-            }
-            for reg in Registration.objects.select_related(
-                "event", "event__period"
-            ).filter(organizer=source):
+            target_regs = {r.event_id: r for r in Registration.objects.filter(organizer=target)}
+            for reg in Registration.objects.select_related("event", "event__period").filter(
+                organizer=source
+            ):
                 if reg.event.period.is_archived:
                     continue
                 existing = target_regs.get(reg.event_id)
@@ -462,34 +494,38 @@ def types_list(request):
             if action == "create":
                 form = forms.GameTypeForm(request.POST)
                 if form.is_valid():
-                    GameType.objects.create(**form.cleaned_data)
+                    type_services.create_type(actor=_bureau_actor(request), **form.cleaned_data)
                 else:
                     messages.error(request, "Formulaire de type invalide.")
             elif action == "edit":
-                game_type = GameType.objects.get(pk=request.POST["type"])
                 form = forms.GameTypeEditForm(request.POST)
                 if form.is_valid():
-                    game_type.name = form.cleaned_data["name"]
-                    game_type.description = form.cleaned_data["description"]
-                    game_type.color = form.cleaned_data["color"]
-                    game_type.save()
+                    type_services.update_type(
+                        request.POST["type"],
+                        actor=_bureau_actor(request),
+                        **form.cleaned_data,
+                    )
                 else:
                     messages.error(request, "Formulaire de type invalide.")
             elif action == "deactivate":
-                GameType.objects.filter(pk=request.POST["type"]).update(
-                    is_active=False
+                type_services.set_type_active(
+                    request.POST["type"], actor=_bureau_actor(request), active=False
                 )
             elif action == "activate":
-                GameType.objects.filter(pk=request.POST["type"]).update(
-                    is_active=True
+                type_services.set_type_active(
+                    request.POST["type"], actor=_bureau_actor(request), active=True
                 )
-        except (GameType.DoesNotExist, ValueError):
-            messages.error(request, "Type introuvable.")
+        except ServiceError as exc:
+            _flash_error(request, exc)
         return redirect("/bureau/types/")
     return render(
         request,
         "bureau/types.html",
-        {"types": GameType.objects.order_by("name"), "form": forms.GameTypeForm()},
+        {
+            "types": GameType.objects.order_by("name"),
+            "form": forms.GameTypeForm(),
+            "palette": type_services.ALLOWED_COLORS,
+        },
     )
 
 
@@ -500,22 +536,61 @@ def journal(request):
     if request.GET.get("period"):
         try:
             period = period_services.get_period(request.GET["period"])
-            event_ids = [
-                str(pk) for pk in period.events.values_list("pk", flat=True)
+        except ServiceError:
+            messages.error(request, "Période de filtre invalide.")
+            period = None
+        if period is not None:
+            event_ids = [str(pk) for pk in period.events.values_list("pk", flat=True)]
+            reg_ids = [
+                str(pk)
+                for pk in Registration.objects.filter(event__period=period).values_list(
+                    "pk", flat=True
+                )
             ]
             entries = entries.filter(
                 Q(target_type="Period", target_id=str(period.pk))
                 | Q(target_type="Event", target_id__in=event_ids)
-                | Q(target_type="Registration")
+                | Q(target_type="Registration", target_id__in=reg_ids)
             )
-        except ServiceError:
-            pass
     if request.GET.get("event"):
-        entries = entries.filter(target_type="Event", target_id=request.GET["event"])
+        try:
+            event = event_services.get_event(request.GET["event"])
+        except ServiceError:
+            messages.error(request, "Date de filtre invalide.")
+            event = None
+        if event is not None:
+            reg_ids = [str(pk) for pk in event.registrations.values_list("pk", flat=True)]
+            entries = entries.filter(
+                Q(target_type="Event", target_id=str(event.pk))
+                | Q(target_type="Registration", target_id__in=reg_ids)
+            )
     if request.GET.get("action"):
         entries = entries.filter(action__icontains=request.GET["action"])
     if request.GET.get("pseudo"):
-        entries = entries.filter(actor_label__icontains=request.GET["pseudo"])
+        pseudo = request.GET["pseudo"].strip()
+        matched_ids = [
+            str(pk)
+            for pk in Organizer.objects.filter(name__icontains=pseudo).values_list("pk", flat=True)
+        ]
+        matched_ids += [
+            str(pk)
+            for pk in Organizer.objects.filter(merged_into_id__in=matched_ids).values_list(
+                "pk", flat=True
+            )
+        ]
+        entries = entries.filter(
+            Q(actor_label__icontains=pseudo)
+            | Q(target_type="Organizer", target_id__in=matched_ids)
+            | Q(
+                target_type="Registration",
+                target_id__in=[
+                    str(pk)
+                    for pk in Registration.objects.filter(organizer_id__in=matched_ids).values_list(
+                        "pk", flat=True
+                    )
+                ],
+            )
+        )
     return render(
         request,
         "bureau/journal.html",
@@ -542,33 +617,52 @@ def export_period_csv(request, period_id):
     except ServiceError as exc:
         return JsonResponse({"error": exc.message}, status=exc.status)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = (
-        f'attachment; filename="periode-{period.pk}.csv"'
-    )
+    response["Content-Disposition"] = f'attachment; filename="periode-{period.pk}.csv"'
     writer = csv.writer(response)
     writer.writerow(
-        ["date", "type", "titre", "statut", "inscriptions_ouvertes",
-         "minimum", "capacité", "pseudo", "état", "note"]
+        [
+            "date",
+            "type",
+            "titre",
+            "statut",
+            "inscriptions_ouvertes",
+            "minimum",
+            "capacité",
+            "pseudo",
+            "état",
+            "note",
+        ]
     )
     for event in selectors.period_events(period):
         regs = list(event.registrations.all())
         if not regs:
             writer.writerow(
                 [
-                    _csv_safe(event.date), _csv_safe(event.type_label),
-                    _csv_safe(event.title), event.status,
-                    event.registrations_open, event.min_organizers,
-                    event.capacity or "", "", "", "",
+                    _csv_safe(event.date),
+                    _csv_safe(event.type_label),
+                    _csv_safe(event.title),
+                    event.status,
+                    event.registrations_open,
+                    event.min_organizers,
+                    event.capacity or "",
+                    "",
+                    "",
+                    "",
                 ]
             )
         for reg in regs:
             writer.writerow(
                 [
-                    _csv_safe(event.date), _csv_safe(event.type_label),
-                    _csv_safe(event.title), event.status,
-                    event.registrations_open, event.min_organizers,
-                    event.capacity or "", _csv_safe(reg.organizer_name),
-                    reg.state, _csv_safe(reg.note),
+                    _csv_safe(event.date),
+                    _csv_safe(event.type_label),
+                    _csv_safe(event.title),
+                    event.status,
+                    event.registrations_open,
+                    event.min_organizers,
+                    event.capacity or "",
+                    _csv_safe(reg.organizer_name),
+                    reg.state,
+                    _csv_safe(reg.note),
                 ]
             )
     return response
@@ -577,8 +671,16 @@ def export_period_csv(request, period_id):
 @bureau_page
 @require_GET
 def export_business_json(request):
+    site = SiteSettings.get()
     data = {
+        "schema_version": 1,
         "exported_at": timezone.now().isoformat(),
+        "site": {
+            "site_name": site.site_name,
+            "active_period_id": (str(site.active_period_id) if site.active_period_id else None),
+            "default_min_organizers": site.default_min_organizers,
+            "default_capacity": site.default_capacity,
+        },
         "periods": [
             {
                 "id": str(p.pk),
@@ -616,6 +718,7 @@ def export_business_json(request):
                 "id": str(e.pk),
                 "period_id": str(e.period_id),
                 "date": e.date.isoformat(),
+                "game_type_id": (str(e.game_type_id) if e.game_type_id else None),
                 "type_label": e.type_label,
                 "title": e.title,
                 "public_note": e.public_note,
@@ -674,8 +777,34 @@ def password_change(request):
             user.set_password(form.cleaned_data["new_password"])
             user.save()
             logout(request)
-            messages.success(
-                request, "Mot de passe modifié ; veuillez vous reconnecter."
-            )
+            messages.success(request, "Mot de passe modifié ; veuillez vous reconnecter.")
             return redirect("/bureau/connexion/")
     return render(request, "bureau/password.html", {"form": form})
+
+
+@bureau_page
+@require_http_methods(["GET", "POST"])
+def site_settings(request):
+    site = SiteSettings.get()
+    form = forms.SiteSettingsForm(
+        request.POST if request.method == "POST" else None,
+        initial={
+            "site_name": site.site_name,
+            "default_min_organizers": site.default_min_organizers,
+            "default_capacity": site.default_capacity,
+        },
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            period_services.update_settings(
+                actor=_bureau_actor(request),
+                site_name=form.cleaned_data["site_name"],
+                default_min_organizers=form.cleaned_data["default_min_organizers"],
+                default_capacity=form.cleaned_data["default_capacity"],
+            )
+        except ServiceError as exc:
+            _flash_error(request, exc)
+        else:
+            messages.success(request, "Réglages enregistrés.")
+            return redirect("bureau_settings")
+    return render(request, "bureau/settings.html", {"form": form})

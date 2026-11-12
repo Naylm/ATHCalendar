@@ -33,7 +33,7 @@ MAX_BATCH = 200
 
 def get_event(event_id) -> Event:
     try:
-        return Event.objects.select_related("period").get(pk=parse_uuid(event_id))
+        return Event.objects.select_related("period", "game_type").get(pk=parse_uuid(event_id))
     except Event.DoesNotExist:
         raise NotFound("Date introuvable.") from None
 
@@ -90,22 +90,20 @@ def create_event(
     title=None,
     public_note=None,
     min_organizers=None,
-    capacity=None,
+    capacity=UNSET,
 ):
     period = get_period(period_id)
     _require_bureau(actor)
     date_value = require_date(date_value, "Date")
     title = optional_str(title, "Titre", max_len=120, field="title")
-    public_note = optional_str(
-        public_note, "Note publique", max_len=1000, field="public_note"
-    )
-    settings = SiteSettings.get()
-    effective_min = (
-        min_organizers if min_organizers is not None
-        else settings.default_min_organizers
-    )
-    _validate_min_capacity(effective_min, capacity)
+    public_note = optional_str(public_note, "Note publique", max_len=1000, field="public_note")
     with write_transaction():
+        settings = SiteSettings.get()
+        effective_min = (
+            min_organizers if min_organizers is not None else settings.default_min_organizers
+        )
+        effective_capacity = settings.default_capacity if capacity is UNSET else capacity
+        _validate_min_capacity(effective_min, effective_capacity)
         period = Period.objects.get(pk=period.pk)
         _require_not_archived(period)
         if not period.start_date <= date_value <= period.end_date:
@@ -128,7 +126,7 @@ def create_event(
             title=title,
             public_note=public_note,
             min_organizers=effective_min,
-            capacity=capacity if capacity is not None else settings.default_capacity,
+            capacity=effective_capacity,
         )
         bump_revision(period)
         audit.log(
@@ -155,17 +153,13 @@ def update_event(
     event = get_event(event_id)
     _require_bureau(actor)
     if expected_version is not None:
-        expected_version = require_int(
-            expected_version, "Version", minimum=0, field="version"
-        )
+        expected_version = require_int(expected_version, "Version", minimum=0, field="version")
     if date_value is not None:
         date_value = require_date(date_value, "Date")
     if title is not None:
         title = optional_str(title, "Titre", max_len=120, field="title")
     if public_note is not None:
-        public_note = optional_str(
-            public_note, "Note publique", max_len=1000, field="public_note"
-        )
+        public_note = optional_str(public_note, "Note publique", max_len=1000, field="public_note")
     with write_transaction():
         event = Event.objects.select_related("period").get(pk=event.pk)
         period = event.period
@@ -178,27 +172,25 @@ def update_event(
                     "La date doit se situer à l'intérieur des bornes de la période.",
                     fields={"date": "Hors bornes de la période."},
                 )
-            if (
-                period.events.exclude(pk=event.pk)
-                .filter(date=date_value)
-                .exists()
-            ):
+            if period.events.exclude(pk=event.pk).filter(date=date_value).exists():
                 raise Conflict(
                     "Une autre date existe déjà pour ce jour dans cette période.",
                     fields={"date": str(date_value)},
                 )
             event.date = date_value
         if game_type_id is not UNSET:
-            game_type = _resolve_type(game_type_id)
+            requested = parse_uuid(game_type_id, "Type") if game_type_id else None
+            if requested != event.game_type_id:
+                game_type = _resolve_type(game_type_id)
+            else:
+                game_type = event.game_type
             event.game_type = game_type
             event.type_label = game_type.name if game_type else ""
         if title is not None:
             event.title = title
         if public_note is not None:
             event.public_note = public_note
-        new_min = (
-            min_organizers if min_organizers is not None else event.min_organizers
-        )
+        new_min = min_organizers if min_organizers is not None else event.min_organizers
         new_capacity = capacity if capacity is not UNSET else event.capacity
         _validate_min_capacity(new_min, new_capacity)
         if capacity is not UNSET:
@@ -245,9 +237,7 @@ def set_registrations_open(event_id, *, actor: Actor, is_open, expected_version=
     is_open = require_bool(is_open, "Ouverture", field="is_open")
     event = get_event(event_id)
     if is_open and event.status == Event.Status.CANCELLED:
-        raise ClosedConflict(
-            "Une date annulée ne peut pas être rouverte ; restaurez-la d'abord."
-        )
+        raise ClosedConflict("Une date annulée ne peut pas être rouverte ; restaurez-la d'abord.")
     return _set_event_flag(
         event_id,
         actor=actor,
@@ -258,15 +248,11 @@ def set_registrations_open(event_id, *, actor: Actor, is_open, expected_version=
     )
 
 
-def _set_event_flag(
-    event_id, *, actor, expected_version, status, registrations_open, action
-):
+def _set_event_flag(event_id, *, actor, expected_version, status, registrations_open, action):
     event = get_event(event_id)
     _require_bureau(actor)
     if expected_version is not None:
-        expected_version = require_int(
-            expected_version, "Version", minimum=0, field="version"
-        )
+        expected_version = require_int(expected_version, "Version", minimum=0, field="version")
     with write_transaction():
         event = Event.objects.select_related("period").get(pk=event.pk)
         period = event.period
@@ -277,9 +263,7 @@ def _set_event_flag(
         if status is not None and event.status != status:
             event.status = status
             changed = True
-        if registrations_open is not None and (
-            event.registrations_open != registrations_open
-        ):
+        if registrations_open is not None and (event.registrations_open != registrations_open):
             event.registrations_open = registrations_open
             changed = True
         if changed:
@@ -305,9 +289,22 @@ def batch_update(
     capacity=UNSET,
     registrations_open=None,
     cancel=None,
+    expected_versions=None,
 ):
     _require_bureau(actor)
     ids = list(dict.fromkeys(parse_uuid(eid, "Date") for eid in event_ids))
+    checked_versions = {}
+    if expected_versions is not None:
+        for key, value in expected_versions.items():
+            checked_versions[str(parse_uuid(key, "Date"))] = require_int(
+                value, "Version", minimum=1, field="version"
+            )
+        missing_keys = {str(i) for i in ids} - set(checked_versions)
+        if missing_keys:
+            raise ValidationFailed(
+                "Version manquante pour une date sélectionnée ; veuillez recharger.",
+                fields={"versions": sorted(missing_keys)},
+            )
     if not ids:
         raise ValidationFailed("Aucune date sélectionnée.")
     if len(ids) > MAX_BATCH:
@@ -324,18 +321,15 @@ def batch_update(
     if cancel is not None:
         require_bool(cancel, "Annulation", field="cancel")
     with write_transaction():
-        events = list(
-            Event.objects.select_related("period")
-            .filter(pk__in=ids)
-            .order_by("date")
-        )
+        events = list(Event.objects.select_related("period").filter(pk__in=ids).order_by("date"))
         if len(events) != len(ids):
             raise NotFound("Certaines dates sont introuvables.")
         for event in events:
             _require_not_archived(event.period)
-        game_type = (
-            _resolve_type(game_type_id) if game_type_id is not UNSET else UNSET
-        )
+            expected = checked_versions.get(str(event.pk))
+            if expected is not None:
+                _check_version(event, expected)
+        game_type = _resolve_type(game_type_id) if game_type_id is not UNSET else UNSET
         if min_organizers is not None or capacity is not UNSET:
             counts = {
                 row["pk"]: row["n"]
@@ -349,11 +343,7 @@ def batch_update(
                 .values("pk", "n")
             }
             for event in events:
-                eff_min = (
-                    min_organizers
-                    if min_organizers is not None
-                    else event.min_organizers
-                )
+                eff_min = min_organizers if min_organizers is not None else event.min_organizers
                 eff_cap = capacity if capacity is not UNSET else event.capacity
                 _validate_min_capacity(eff_min, eff_cap)
                 if eff_cap is not None and eff_cap < counts.get(event.pk, 0):

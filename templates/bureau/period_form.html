@@ -6,12 +6,23 @@
   {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
 </ul>
 {% endif %}
+<div class="filters">
+  <a class="chip" href="?semestre=1">Semestre 1 (année courante)</a>
+  <a class="chip" href="?semestre=2">Semestre 2 (année courante)</a>
+</div>
 <form method="post" class="card">
   {% csrf_token %}
+  {% if preview %}<input type="hidden" name="previewed" value="1">{% endif %}
+  {{ form.non_field_errors }}
   {{ form.label.errors }}
   <p><label for="id_label">Libellé</label>{{ form.label }}</p>
+  {{ form.start_date.errors }}
   <p><label for="id_start_date">Début</label>{{ form.start_date }}</p>
+  {{ form.end_date.errors }}
   <p><label for="id_end_date">Fin</label>{{ form.end_date }}</p>
+  {{ form.creation_key.errors }}
+  {{ form.selected_dates.errors }}
+  {{ form.previewed.errors }}
   {{ form.creation_key }}
   {{ form.selected_dates }}
   {% if preview and preview.overlaps %}
@@ -32,15 +43,13 @@
 </form>
 {% if preview %}
 <section class="card">
-  <h2>Aperçu : {{ preview.total }} week-ends</h2>
-  <p class="muted">Décochez les dates à ne pas créer, puis validez. Des dates en semaine pourront être ajoutées ensuite.</p>
+  <h2>Aperçu : {{ preview.total }} dates de week-end</h2>
+  <p class="muted">Décochez les dates de week-end à ne pas créer, puis validez. Des dates en semaine pourront être ajoutées ensuite.</p>
   <ul class="preview-list" id="preview-list">
     {% for day in preview.dates %}
     <li><label><input type="checkbox" class="preview-check" value="{{ day|date:'Y-m-d' }}" checked> {{ day|date:'l j F Y' }}</label></li>
     {% endfor %}
   </ul>
 </section>
-{% load static %}
-<script src="{% static 'js/bureau.js' %}" defer></script>
 {% endif %}
 {% endblock %}

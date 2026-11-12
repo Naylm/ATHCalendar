@@ -8,20 +8,41 @@
     {% if period.is_archived %}
     <button type="submit" name="action" value="reopen" class="btn">Rouvrir la période</button>
     {% else %}
-    <button type="submit" name="action" value="archive" class="btn btn-danger">Archiver</button>
-    <button type="submit" name="action" value="generate_missing" class="btn">Compléter les week-ends manquants</button>
-    <button type="submit" name="action" value="close_all" class="btn">Fermer les inscriptions</button>
+    <button type="submit" name="action" value="archive" class="btn btn-danger" data-confirm="Archiver cette période ? Elle deviendra en lecture seule.">Archiver</button>
+    <button type="submit" name="action" value="close_all" class="btn" data-confirm="Fermer les inscriptions de toutes les dates planifiées ?">Fermer les inscriptions</button>
     <button type="submit" name="action" value="open_all" class="btn">Ouvrir les inscriptions</button>
     {% endif %}
   </form>
+  {% if missing_dates %}
+  <details class="card">
+    <summary>Compléter les week-ends manquants ({{ missing_dates|length }})</summary>
+    <form method="post">
+      {% csrf_token %}
+      <ul class="preview-list">
+        {% for day in missing_dates %}
+        <li><label><input type="checkbox" name="missing_dates" value="{{ day|date:'Y-m-d' }}" checked> {{ day|date:'l j F Y' }}</label></li>
+        {% endfor %}
+      </ul>
+      <button type="submit" name="action" value="generate_missing" class="btn">Créer les dates cochées</button>
+    </form>
+  </details>
+  {% endif %}
+  {% if not period.is_archived %}
   <form method="post" class="period-edit">
     {% csrf_token %}
+    {{ form.non_field_errors }}
     {{ form.expected_version }}
+    {{ form.label.errors }}
     <p><label for="id_label">Libellé</label>{{ form.label }}</p>
+    {{ form.start_date.errors }}
     <p><label for="id_start_date">Début</label>{{ form.start_date }}</p>
+    {{ form.end_date.errors }}
     <p><label for="id_end_date">Fin</label>{{ form.end_date }}</p>
-    <button type="submit" name="action" value="update" class="btn" {% if period.is_archived %}disabled{% endif %}>Enregistrer les bornes</button>
+    <button type="submit" name="action" value="update" class="btn">Enregistrer les bornes</button>
   </form>
+  {% else %}
+  <p class="muted">Période archivée — lecture seule. Seule la réouverture permet des corrections.</p>
+  {% endif %}
 </div>
 
 <h2>Dates ({{ events|length }})</h2>
@@ -37,11 +58,12 @@
 {% endif %}
 <form method="post" action="/bureau/periodes/{{ period.pk }}/dates/groupe/" id="batch-form">
   {% csrf_token %}
+  {{ batch_form.versions_json }}
   <ul class="event-list">
     {% for event in events %}
     <li class="card event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}">
       <div class="event-head">
-        {% if not period.is_archived %}<input type="checkbox" name="event_ids" value="{{ event.pk }}">{% endif %}
+        {% if not period.is_archived %}<input type="checkbox" name="event_ids" value="{{ event.pk }}" data-version="{{ event.version }}">{% endif %}
         <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
         <span class="tag">{{ event.payload.type_label }}</span>
         {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
@@ -56,20 +78,25 @@
   <fieldset class="card">
     <legend>Actions groupées sur les dates cochées</legend>
     <p>
-      <label>Type
-        <select name="game_type">
-          <option value="">— ne pas changer —</option>
-          {% for t in game_types %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}
-        </select>
-      </label>
+      <label>Type {{ batch_form.game_type }}</label>
       <label>Minimum <input type="number" name="min_organizers" min="1"></label>
-      <label>Capacité <input type="number" name="capacity" min="1"></label>
+      <label>Capacité
+        <select name="capacity_mode">
+          <option value="unchanged">Ne pas changer</option>
+          <option value="unlimited">Illimitée</option>
+          <option value="value">Valeur</option>
+        </select>
+        <input type="number" name="capacity_value" min="1" aria-label="Valeur de capacité">
+      </label>
+    </p>
+    <p>
+      <button type="submit" class="btn btn-primary" formaction="/bureau/periodes/{{ period.pk }}/dates/groupe/">Appliquer les paramètres</button>
     </p>
     <p>
       <button type="submit" name="registrations" value="open" class="btn">Ouvrir</button>
-      <button type="submit" name="registrations" value="close" class="btn">Fermer</button>
-      <button type="submit" name="status" value="cancel" class="btn btn-danger">Annuler les dates</button>
-      <button type="submit" name="status" value="restore" class="btn">Restaurer</button>
+      <button type="submit" name="registrations" value="close" class="btn" data-confirm="Fermer les inscriptions des dates cochées ?">Fermer</button>
+      <button type="submit" name="status" value="cancel" class="btn btn-danger" data-confirm="Annuler les dates cochées ?">Annuler les dates</button>
+      <button type="submit" name="status" value="restore" class="btn" data-confirm="Restaurer les dates cochées (elles resteront fermées) ?">Restaurer</button>
     </p>
   </fieldset>
   {% endif %}

@@ -50,9 +50,7 @@ def set_registration(
     expected_event_version=None,
 ):
     if desired_state not in (ACTIVE, WITHDRAWN):
-        raise ValidationFailed(
-            "État demandé invalide.", fields={"state": str(desired_state)}
-        )
+        raise ValidationFailed("État demandé invalide.", fields={"state": str(desired_state)})
     if note is not None:
         note = optional_str(note, "La note", max_len=500, field="note")
     event = get_event(event_id)
@@ -66,34 +64,23 @@ def set_registration(
             _public_write_allowed(event, today)
             if not organizer.is_active:
                 raise ClosedConflict("Ce pseudo est désactivé.")
-        if (
-            expected_event_version is not None
-            and event.version != expected_event_version
-        ):
+        if expected_event_version is not None and event.version != expected_event_version:
             raise VersionConflict(
                 "Cette date a été modifiée entre-temps ; veuillez recharger.",
                 fields={"event_version": str(event.version)},
             )
-        registration = Registration.objects.filter(
-            event=event, organizer=organizer
-        ).first()
+        registration = Registration.objects.filter(event=event, organizer=organizer).first()
         new_state = desired_state
-        new_note = (
-            note if note is not None else (registration.note if registration else "")
-        )
+        new_note = note if note is not None else (registration.note if registration else "")
         if registration is not None and expected_version is not None:
-            needs_change = (
-                registration.state != new_state or registration.note != new_note
-            )
+            needs_change = registration.state != new_state or registration.note != new_note
             if needs_change and registration.version != expected_version:
                 raise VersionConflict(
-                    "Cette inscription a été modifiée entre-temps ; "
-                    "veuillez recharger.",
+                    "Cette inscription a été modifiée entre-temps ; veuillez recharger.",
                     fields={"version": str(registration.version)},
                 )
         if registration is not None and (
-            registration.state == new_state
-            and (note is None or registration.note == new_note)
+            registration.state == new_state and (note is None or registration.note == new_note)
         ):
             return registration
         if new_state == ACTIVE:
@@ -150,10 +137,7 @@ def batch_set(
     failures = {}
     with write_transaction():
         organizer = canonical(type(organizer).objects.get(pk=organizer.pk))
-        events = {
-            e.pk: e
-            for e in Event.objects.select_related("period").filter(pk__in=ids)
-        }
+        events = {e.pk: e for e in Event.objects.select_related("period").filter(pk__in=ids)}
         if len(events) != len(ids):
             raise NotFound("Certaines dates sont introuvables.")
         for event_id in ids:
@@ -163,13 +147,9 @@ def batch_set(
                 continue
             version_info = versions.get(str(event_id), {}) or {}
             expected_event_version = version_info.get("event")
-            if (
-                expected_event_version is not None
-                and event.version != expected_event_version
-            ):
+            if expected_event_version is not None and event.version != expected_event_version:
                 raise VersionConflict(
-                    f"La date du {event.date} a été modifiée entre-temps ; "
-                    "veuillez recharger.",
+                    f"La date du {event.date} a été modifiée entre-temps ; veuillez recharger.",
                     fields={"event_id": str(event_id)},
                 )
             if not actor.is_bureau:
@@ -181,8 +161,7 @@ def batch_set(
             raise ClosedConflict("Ce pseudo est désactivé.")
         if failures:
             raise Conflict(
-                "Certaines dates ne peuvent pas être modifiées ; "
-                "rien n'a été appliqué.",
+                "Certaines dates ne peuvent pas être modifiées ; rien n'a été appliqué.",
                 fields={"failures": failures},
             )
         results = []

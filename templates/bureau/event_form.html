@@ -2,6 +2,9 @@
 {% block bureau_content %}
 <h1>{{ event.date|date:'l j F Y' }} — {{ period_label|default:event.period.label }}</h1>
 <div class="card">
+  {% if event.period.is_archived %}
+  <p class="muted">Période archivée — cette date est en lecture seule. Rouvrez la période pour la modifier.</p>
+  {% else %}
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
@@ -10,16 +13,17 @@
   <form method="post" class="inline-actions">
     {% csrf_token %}
     {% if event.status == 'cancelled' %}
-    <button type="submit" name="action" value="restore" class="btn">Restaurer (reste fermée)</button>
+    <button type="submit" name="action" value="restore" class="btn" data-confirm="Restaurer cette date (elle restera fermée) ?">Restaurer (reste fermée)</button>
     {% else %}
-    <button type="submit" name="action" value="cancel" class="btn btn-danger">Annuler la date</button>
+    <button type="submit" name="action" value="cancel" class="btn btn-danger" data-confirm="Annuler cette date ?">Annuler la date</button>
     {% endif %}
     {% if event.registrations_open %}
-    <button type="submit" name="action" value="close" class="btn">Fermer les inscriptions</button>
+    <button type="submit" name="action" value="close" class="btn" data-confirm="Fermer les inscriptions pour cette date ?">Fermer les inscriptions</button>
     {% else %}
     <button type="submit" name="action" value="open" class="btn">Ouvrir les inscriptions</button>
     {% endif %}
   </form>
+  {% endif %}
 </div>
 <h2>Inscriptions</h2>
 <ul class="event-list">

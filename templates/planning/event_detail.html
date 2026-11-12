@@ -9,9 +9,11 @@
          data-status="{{ event.status }}"
          data-open="{{ event.registrations_open|yesno:'true,false' }}"
          data-past="{{ payload.is_past|yesno:'true,false' }}"
-         data-archived="{{ payload.is_archived|yesno:'true,false' }}">
+         data-archived="{{ payload.is_archived|yesno:'true,false' }}"
+         data-period-id="{{ period.pk }}"
+         data-revision="{{ period.revision }}">
   <h1>{{ event.date|date:'l j F Y' }}</h1>
-  <p class="muted">{{ payload.type_label }} · {{ period.label }}</p>
+  <p class="muted"><span class="tag {{ payload.type_class }}">{{ payload.type_label }}</span> · {{ period.label }}</p>
   {% if event.title %}<p>{{ event.title }}</p>{% endif %}
   {% if event.public_note %}<p>{{ event.public_note }}</p>{% endif %}
   <div class="tags">
@@ -42,6 +44,7 @@
     <p class="form-error" id="registration-error" role="alert" hidden></p>
   </section>
 </article>
+<p class="muted" id="refresh-note" hidden>Des changements ont eu lieu ailleurs. <button type="button" class="link-btn" id="reload-page">Recharger</button></p>
 <div class="modal" id="withdraw-modal" hidden role="dialog" aria-modal="true">
   <div class="modal-card">
     <h2>Confirmer la désinscription</h2>
@@ -55,6 +58,5 @@
 {% endblock %}
 {% block scripts %}
 {% load static %}
-<script src="{% static 'js/api.js' %}" defer></script>
 <script src="{% static 'js/planning.js' %}" defer></script>
 {% endblock %}

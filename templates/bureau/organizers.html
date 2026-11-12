@@ -25,7 +25,7 @@
       <label>Texte final <input name="note_{{ item.event.pk }}" maxlength="500" value="{{ item.target_note }}" required></label>
     </fieldset>
     {% endfor %}
-    <button type="submit" name="action" value="merge" class="btn btn-primary">Confirmer la fusion</button>
+    <button type="submit" name="action" value="merge" class="btn btn-primary" data-confirm="Confirmer la fusion des deux pseudos ?">Confirmer la fusion</button>
   </form>
   {% else %}
   <p>Aucun conflit de note. Confirmer la fusion&nbsp;?</p>
@@ -33,7 +33,7 @@
     {% csrf_token %}
     <input type="hidden" name="source" value="{{ conflicts.source.pk }}">
     <input type="hidden" name="target" value="{{ conflicts.target.pk }}">
-    <button type="submit" name="action" value="merge" class="btn btn-primary">Confirmer la fusion</button>
+    <button type="submit" name="action" value="merge" class="btn btn-primary" data-confirm="Confirmer la fusion des deux pseudos ?">Confirmer la fusion</button>
   </form>
   {% endif %}
 </section>

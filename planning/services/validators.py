@@ -8,9 +8,7 @@ def parse_uuid(value, label="Identifiant"):
     try:
         return uuid.UUID(str(value))
     except (ValueError, AttributeError, TypeError):
-        raise ValidationFailed(
-            f"{label} invalide.", fields={"id": str(value)[:80]}
-        ) from None
+        raise ValidationFailed(f"{label} invalide.", fields={"id": str(value)[:80]}) from None
 
 
 def require_str(value, label, *, max_len, min_len=0, field="value", strip=True):

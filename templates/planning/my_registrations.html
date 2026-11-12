@@ -11,7 +11,7 @@
     <input type="hidden" name="organizer" value="{{ organizer.pk }}">
     {% if history %}<input type="hidden" name="historique" value="1">{% endif %}
     <label for="period">Période</label>
-    <select id="period" name="period" onchange="this.form.submit()">
+    <select id="period" name="period" class="js-auto-submit">
       <option value="">Toutes</option>
       {% for p in periods %}
       <option value="{{ p.pk }}" {% if period_filter == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.label }}</option>

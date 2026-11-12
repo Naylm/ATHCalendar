@@ -50,6 +50,17 @@ class GameType(models.Model):
     color = models.CharField(max_length=7, default="#6b7c4a")
     is_active = models.BooleanField(default=True)
 
+    def __str__(self):
+        return self.name
+
+    @property
+    def color_class(self):
+        palette = ("#6b7c4a", "#b08a3e", "#526777", "#60766b", "#8a5b55")
+        try:
+            return f"type-c{palette.index(self.color.lower()) + 1}"
+        except (ValueError, AttributeError):
+            return "type-c1"
+
 
 class Event(models.Model):
     class Origin(models.TextChoices):

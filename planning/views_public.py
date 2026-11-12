@@ -1,19 +1,19 @@
 from django.db import connection
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
 
 from . import selectors
-from .errors import ServiceError
+from .errors import NotFound, ServiceError
 from .services import events as event_services
 from .services import organizers as organizer_services
 from .services import periods as period_services
+from .services.validators import parse_uuid
 
 
 def _period_nav(period, current_id):
-    periods = list(
-        period_services.Period.objects.order_by("start_date", "created_at")
-    )
+    periods = list(period_services.Period.objects.order_by("start_date", "created_at"))
     return {
         "periods": [
             {
@@ -27,16 +27,30 @@ def _period_nav(period, current_id):
     }
 
 
+@ensure_csrf_cookie
 @require_GET
 def index(request):
+    requested = request.GET.get("period")
+    if requested:
+        try:
+            requested = parse_uuid(requested, "Période")
+        except ServiceError:
+            requested = None
     try:
-        period = selectors.default_period(request.GET.get("period"))
+        period = selectors.default_period(requested)
     except ServiceError:
         period = None
     view = request.GET.get("vue", "liste")
-    events = list(selectors.period_events(period)) if period else []
-    for event in events:
-        event.payload = selectors.event_payload(event)
+    if view not in ("liste", "calendrier"):
+        view = "liste"
+    filtre = request.GET.get("filtre")
+    if period:
+        events, filtre = selectors.filtered_events(period, filtre)
+        events = list(events)
+        for event in events:
+            event.payload = selectors.event_payload(event)
+    else:
+        events, filtre = [], "avenir"
     return render(
         request,
         "planning/index.html",
@@ -44,15 +58,20 @@ def index(request):
             "period": period,
             "events": events,
             "view": view,
+            "filtre": filtre,
             "nav": _period_nav(None, period.pk if period else ""),
             "organizers": selectors.public_organizers(),
         },
     )
 
 
+@ensure_csrf_cookie
 @require_GET
 def event_detail(request, event_id):
-    event = event_services.get_event(event_id)
+    try:
+        event = event_services.get_event(event_id)
+    except NotFound:
+        raise Http404("Date introuvable.") from None
     payload = selectors.event_payload(event)
     my_reg = None
     organizer_id = request.GET.get("organizer")
@@ -79,11 +98,17 @@ def event_detail(request, event_id):
     )
 
 
+@ensure_csrf_cookie
 @require_GET
 def my_registrations(request):
     organizer = None
     regs = []
     period_filter = request.GET.get("period")
+    if period_filter:
+        try:
+            parse_uuid(period_filter, "Période")
+        except ServiceError:
+            period_filter = None
     history = request.GET.get("historique") == "1"
     organizer_id = request.GET.get("organizer")
     if organizer_id:
@@ -104,9 +129,7 @@ def my_registrations(request):
             "registrations": regs,
             "history": history,
             "organizers": selectors.public_organizers(),
-            "periods": period_services.Period.objects.order_by(
-                "start_date", "created_at"
-            ),
+            "periods": period_services.Period.objects.order_by("start_date", "created_at"),
             "period_filter": period_filter or "",
         },
     )
@@ -116,7 +139,8 @@ def my_registrations(request):
 def healthz(request):
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
+            cursor.execute("SELECT 1 FROM planning_event LIMIT 1")
+            cursor.fetchone()
         return JsonResponse({"status": "ok"})
     except Exception:
         return JsonResponse({"status": "error"}, status=503)
@@ -124,6 +148,4 @@ def healthz(request):
 
 @require_GET
 def robots_txt(request):
-    return HttpResponse(
-        "User-agent: *\nDisallow: /\n", content_type="text/plain"
-    )
+    return HttpResponse("User-agent: *\nDisallow: /\n", content_type="text/plain")

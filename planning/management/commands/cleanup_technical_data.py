@@ -1,10 +1,10 @@
 from datetime import timedelta
 
+from django.contrib.sessions.models import Session
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from planning.models import RateLimitBucket
-from django.contrib.sessions.models import Session
 
 
 class Command(BaseCommand):

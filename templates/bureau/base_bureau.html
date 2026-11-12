@@ -14,3 +14,7 @@
 {% endif %}
 {% block bureau_content %}{% endblock %}
 {% endblock %}
+{% block scripts %}
+{% load static %}
+<script src="{% static 'js/bureau.js' %}" defer></script>
+{% endblock %}

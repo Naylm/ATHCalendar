@@ -8,6 +8,7 @@ class Actor:
     kind: str
     label: str = ""
     organizer: Organizer | None = None
+    request_id: str = ""
 
     @classmethod
     def bureau(cls):

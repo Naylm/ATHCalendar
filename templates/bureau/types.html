@@ -13,7 +13,7 @@
   {% for t in types %}
   <li class="card">
     <div class="event-head">
-      <span class="tag" style="background:{{ t.color }}; color:#fff">{{ t.name }}</span>
+      <span class="tag {{ t.color_class }}">{{ t.name }}</span>
       <code>{{ t.code }}</code>
       {% if not t.is_active %}<span class="tag tag-muted">Désactivé</span>{% endif %}
     </div>
@@ -22,7 +22,9 @@
       {% csrf_token %}
       <input type="hidden" name="type" value="{{ t.pk }}">
       <input name="name" value="{{ t.name }}" maxlength="120" aria-label="Nom">
-      <input name="color" value="{{ t.color }}" pattern="#[0-9a-fA-F]{6}" aria-label="Couleur">
+      <select name="color" aria-label="Couleur">
+        {% for c in palette %}<option value="{{ c }}" {% if t.color == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
       <input name="description" value="{{ t.description }}" aria-label="Description">
       <button type="submit" name="action" value="edit" class="btn">Modifier</button>
       {% if t.is_active %}

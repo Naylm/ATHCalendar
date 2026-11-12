@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block page_id %}my-registrations{% endblock %}
+{% block content %}
+<h1>Mes inscriptions</h1>
+{% if organizer %}
+<p>Pseudo&nbsp;: <strong>{{ organizer.name }}</strong> <button type="button" class="link-btn" id="change-pseudo-2">Changer</button></p>
+<div class="filters">
+  <a class="chip {% if not history %}active{% endif %}" href="?organizer={{ organizer.pk }}">À venir</a>
+  <a class="chip {% if history %}active{% endif %}" href="?organizer={{ organizer.pk }}&historique=1">Historique</a>
+  <form method="get" class="period-select">
+    <input type="hidden" name="organizer" value="{{ organizer.pk }}">
+    {% if history %}<input type="hidden" name="historique" value="1">{% endif %}
+    <label for="period">Période</label>
+    <select id="period" name="period" onchange="this.form.submit()">
+      <option value="">Toutes</option>
+      {% for p in periods %}
+      <option value="{{ p.pk }}" {% if period_filter == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+<ul class="event-list">
+  {% for reg in registrations %}
+  <li class="card">
+    <div class="event-head">
+      <span class="event-date">{{ reg.event.date|date:'l j F Y' }}</span>
+      <span class="tag">{{ reg.event.type_label|default:'À définir' }}</span>
+      {% if reg.state == 'withdrawn' %}<span class="tag tag-muted">Retirée</span>{% endif %}
+      {% if reg.event.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
+      {% if not reg.event.registrations_open %}<span class="tag tag-muted">Fermée</span>{% endif %}
+    </div>
+    <p class="muted">{{ reg.event.period.label }}</p>
+    {% if reg.note %}<p>Note&nbsp;: {{ reg.note }}</p>{% endif %}
+    <a class="btn" href="/dates/{{ reg.event.pk }}/?organizer={{ organizer.pk }}">Voir la partie</a>
+  </li>
+  {% empty %}
+  <li class="card muted">Aucune inscription pour ce filtre.</li>
+  {% endfor %}
+</ul>
+{% else %}
+<section class="card empty-state">
+  <p>Choisissez votre pseudo pour afficher vos inscriptions.</p>
+  <button type="button" class="btn btn-primary" id="open-picker">Choisir un pseudo</button>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% load static %}
+<script src="{% static 'js/planning.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card narrow">
+  <h1>Espace Bureau</h1>
+  {% if messages %}
+  <ul class="messages" role="alert">
+    {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Connexion</button>
+  </form>
+</section>
+{% endblock %}

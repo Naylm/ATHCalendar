@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block page_id %}event-detail{% endblock %}
+{% block content %}
+<a class="link-btn back" href="/?period={{ period.pk }}">&lt; Planning</a>
+<article class="card"
+         id="event-card"
+         data-event-id="{{ event.pk }}"
+         data-version="{{ event.version }}"
+         data-status="{{ event.status }}"
+         data-open="{{ event.registrations_open|yesno:'true,false' }}"
+         data-past="{{ payload.is_past|yesno:'true,false' }}"
+         data-archived="{{ payload.is_archived|yesno:'true,false' }}">
+  <h1>{{ event.date|date:'l j F Y' }}</h1>
+  <p class="muted">{{ payload.type_label }} · {{ period.label }}</p>
+  {% if event.title %}<p>{{ event.title }}</p>{% endif %}
+  {% if event.public_note %}<p>{{ event.public_note }}</p>{% endif %}
+  <div class="tags">
+    {% if payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
+    {% if not event.registrations_open %}<span class="tag tag-muted">Inscriptions fermées</span>{% endif %}
+    {% if payload.is_past %}<span class="tag tag-muted">Date passée</span>{% endif %}
+    {% if payload.is_archived %}<span class="tag tag-muted">Période archivée</span>{% endif %}
+  </div>
+  <p>{{ payload.active_count }} organisateur(s) · minimum {{ event.min_organizers }}{% if event.capacity %} · capacité {{ event.capacity }}{% endif %}</p>
+  <h2>Organisateurs</h2>
+  <ul class="organizer-list">
+    {% for reg in payload.organizers %}
+    <li><strong>{{ reg.organizer_name }}</strong>{% if reg.note %} <span class="muted">— {{ reg.note }}</span>{% endif %}</li>
+    {% empty %}<li class="muted">Aucun organisateur pour le moment.</li>
+    {% endfor %}
+  </ul>
+  <section id="registration-zone">
+    <form id="registration-form" hidden>
+      <label for="note-input">Note facultative (visible par tous)</label>
+      <input id="note-input" name="note" maxlength="500" autocomplete="off">
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="save-note-btn">Enregistrer</button>
+        <button type="button" class="btn" id="withdraw-btn">Me désinscrire</button>
+      </div>
+    </form>
+    <button type="button" class="btn btn-primary" id="join-btn">M'inscrire</button>
+    <p class="muted" id="unavailable-reason" hidden></p>
+    <p class="form-error" id="registration-error" role="alert" hidden></p>
+  </section>
+</article>
+<div class="modal" id="withdraw-modal" hidden role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h2>Confirmer la désinscription</h2>
+    <p id="withdraw-summary"></p>
+    <div class="actions">
+      <button type="button" class="btn btn-danger" id="withdraw-confirm">Me désinscrire</button>
+      <button type="button" class="btn" id="withdraw-cancel">Annuler</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% load static %}
+<script src="{% static 'js/api.js' %}" defer></script>
+<script src="{% static 'js/planning.js' %}" defer></script>
+{% endblock %}

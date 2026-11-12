@@ -1,0 +1,77 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>{{ period.label }} {% if period.is_archived %}<span class="tag tag-muted">Archivée</span>{% endif %}</h1>
+<div class="card">
+  <form method="post" class="inline-actions">
+    {% csrf_token %}
+    <button type="submit" name="action" value="set_active" class="btn" {% if period.is_archived %}disabled{% endif %}>Définir active</button>
+    {% if period.is_archived %}
+    <button type="submit" name="action" value="reopen" class="btn">Rouvrir la période</button>
+    {% else %}
+    <button type="submit" name="action" value="archive" class="btn btn-danger">Archiver</button>
+    <button type="submit" name="action" value="generate_missing" class="btn">Compléter les week-ends manquants</button>
+    <button type="submit" name="action" value="close_all" class="btn">Fermer les inscriptions</button>
+    <button type="submit" name="action" value="open_all" class="btn">Ouvrir les inscriptions</button>
+    {% endif %}
+  </form>
+  <form method="post" class="period-edit">
+    {% csrf_token %}
+    {{ form.expected_version }}
+    <p><label for="id_label">Libellé</label>{{ form.label }}</p>
+    <p><label for="id_start_date">Début</label>{{ form.start_date }}</p>
+    <p><label for="id_end_date">Fin</label>{{ form.end_date }}</p>
+    <button type="submit" name="action" value="update" class="btn" {% if period.is_archived %}disabled{% endif %}>Enregistrer les bornes</button>
+  </form>
+</div>
+
+<h2>Dates ({{ events|length }})</h2>
+{% if not period.is_archived %}
+<details class="card">
+  <summary>Ajouter une date en semaine</summary>
+  <form method="post" action="/bureau/periodes/{{ period.pk }}/dates/nouvelle/">
+    {% csrf_token %}
+    {{ event_form.as_p }}
+    <button type="submit" class="btn btn-primary">Ajouter</button>
+  </form>
+</details>
+{% endif %}
+<form method="post" action="/bureau/periodes/{{ period.pk }}/dates/groupe/" id="batch-form">
+  {% csrf_token %}
+  <ul class="event-list">
+    {% for event in events %}
+    <li class="card event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}">
+      <div class="event-head">
+        {% if not period.is_archived %}<input type="checkbox" name="event_ids" value="{{ event.pk }}">{% endif %}
+        <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
+        <span class="tag">{{ event.payload.type_label }}</span>
+        {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
+        {% if not event.registrations_open %}<span class="tag tag-muted">Fermée</span>{% endif %}
+      </div>
+      <p class="muted">{{ event.payload.active_count }} organisateur(s) · min {{ event.min_organizers }}{% if event.capacity %} · cap {{ event.capacity }}{% endif %} · v{{ event.version }}</p>
+      <a class="btn" href="/bureau/dates/{{ event.pk }}/">Modifier</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if not period.is_archived %}
+  <fieldset class="card">
+    <legend>Actions groupées sur les dates cochées</legend>
+    <p>
+      <label>Type
+        <select name="game_type">
+          <option value="">— ne pas changer —</option>
+          {% for t in game_types %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Minimum <input type="number" name="min_organizers" min="1"></label>
+      <label>Capacité <input type="number" name="capacity" min="1"></label>
+    </p>
+    <p>
+      <button type="submit" name="registrations" value="open" class="btn">Ouvrir</button>
+      <button type="submit" name="registrations" value="close" class="btn">Fermer</button>
+      <button type="submit" name="status" value="cancel" class="btn btn-danger">Annuler les dates</button>
+      <button type="submit" name="status" value="restore" class="btn">Restaurer</button>
+    </p>
+  </fieldset>
+  {% endif %}
+</form>
+{% endblock %}

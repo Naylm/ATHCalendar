@@ -1,0 +1,28 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Périodes</h1>
+<a class="btn btn-primary" href="/bureau/periodes/nouvelle/">Créer une période</a>
+<a class="btn" href="/bureau/exports/donnees.json">Export JSON complet</a>
+<ul class="event-list">
+  {% for period in periods %}
+  <li class="card">
+    <div class="event-head">
+      <strong>{{ period.label }}</strong>
+      {% if settings.active_period_id == period.pk %}<span class="tag">Active</span>{% endif %}
+      {% if period.is_archived %}<span class="tag tag-muted">Archivée</span>{% endif %}
+    </div>
+    <p class="muted">{{ period.start_date|date:'j F Y' }} → {{ period.end_date|date:'j F Y' }}</p>
+    <p>{{ period.event_count }} date(s) · {{ period.understaffed }} à renforcer</p>
+    <div class="actions">
+      <a class="btn" href="/bureau/periodes/{{ period.pk }}/">Gérer</a>
+      <a class="btn" href="/bureau/exports/periode/{{ period.pk }}.csv">Export CSV</a>
+    </div>
+  </li>
+  {% empty %}<li class="card muted">Aucune période. Créez la première.</li>
+  {% endfor %}
+</ul>
+<form method="post" action="/bureau/deconnexion/" class="logout-form">
+  {% csrf_token %}
+  <button type="submit" class="link-btn">Déconnexion</button>
+</form>
+{% endblock %}

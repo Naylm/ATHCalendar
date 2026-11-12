@@ -1,0 +1,37 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Types de parties</h1>
+<details class="card">
+  <summary>Ajouter un type</summary>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" name="action" value="create" class="btn">Ajouter</button>
+  </form>
+</details>
+<ul class="event-list">
+  {% for t in types %}
+  <li class="card">
+    <div class="event-head">
+      <span class="tag" style="background:{{ t.color }}; color:#fff">{{ t.name }}</span>
+      <code>{{ t.code }}</code>
+      {% if not t.is_active %}<span class="tag tag-muted">Désactivé</span>{% endif %}
+    </div>
+    <p>{{ t.description }}</p>
+    <form method="post" class="inline-form">
+      {% csrf_token %}
+      <input type="hidden" name="type" value="{{ t.pk }}">
+      <input name="name" value="{{ t.name }}" maxlength="120" aria-label="Nom">
+      <input name="color" value="{{ t.color }}" pattern="#[0-9a-fA-F]{6}" aria-label="Couleur">
+      <input name="description" value="{{ t.description }}" aria-label="Description">
+      <button type="submit" name="action" value="edit" class="btn">Modifier</button>
+      {% if t.is_active %}
+      <button type="submit" name="action" value="deactivate" class="btn">Désactiver</button>
+      {% else %}
+      <button type="submit" name="action" value="activate" class="btn">Réactiver</button>
+      {% endif %}
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

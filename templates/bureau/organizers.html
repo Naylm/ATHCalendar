@@ -1,0 +1,77 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Pseudos</h1>
+<details class="card">
+  <summary>Ajouter un pseudo</summary>
+  <form method="post">
+    {% csrf_token %}
+    <p><label>Pseudo <input name="name" minlength="2" maxlength="40" required></label></p>
+    <button type="submit" name="action" value="create" class="btn">Ajouter</button>
+  </form>
+</details>
+{% if conflicts %}
+<section class="card">
+  <h2>Fusion : {{ conflicts.source.name }} → {{ conflicts.target.name }}</h2>
+  {% if conflicts.shared %}
+  <p>Notes différentes sur des dates communes ; choisissez le texte final :</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="source" value="{{ conflicts.source.pk }}">
+    <input type="hidden" name="target" value="{{ conflicts.target.pk }}">
+    {% for item in conflicts.shared %}
+    <fieldset>
+      <legend>{{ item.event.date|date:'l j F Y' }}</legend>
+      <p>Source : « {{ item.source_note }} » · Cible : « {{ item.target_note }} »</p>
+      <label>Texte final <input name="note_{{ item.event.pk }}" maxlength="500" value="{{ item.target_note }}" required></label>
+    </fieldset>
+    {% endfor %}
+    <button type="submit" name="action" value="merge" class="btn btn-primary">Confirmer la fusion</button>
+  </form>
+  {% else %}
+  <p>Aucun conflit de note. Confirmer la fusion&nbsp;?</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="source" value="{{ conflicts.source.pk }}">
+    <input type="hidden" name="target" value="{{ conflicts.target.pk }}">
+    <button type="submit" name="action" value="merge" class="btn btn-primary">Confirmer la fusion</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+<form method="get" class="card">
+  <p><label>Fusionner
+    <select name="fusion_source">
+      {% for o in organizers %}<option value="{{ o.pk }}">{{ o.name }}{% if not o.is_active %} (inactif){% endif %}</option>{% endfor %}
+    </select></label>
+    <label>dans
+    <select name="fusion_target">
+      {% for o in organizers %}<option value="{{ o.pk }}">{{ o.name }}</option>{% endfor %}
+    </select></label>
+    <button type="submit" class="btn">Prévisualiser</button>
+  </p>
+</form>
+<ul class="event-list">
+  {% for o in organizers %}
+  <li class="card">
+    <div class="event-head">
+      <strong>{{ o.name }}</strong>
+      {% if not o.is_active %}<span class="tag tag-muted">Inactif</span>{% endif %}
+      {% if o.merged_into_id %}<span class="tag tag-muted">Alias de {{ o.merged_into.name }}</span>{% endif %}
+    </div>
+    {% if not o.merged_into_id %}
+    <form method="post" class="inline-form">
+      {% csrf_token %}
+      <input type="hidden" name="organizer" value="{{ o.pk }}">
+      <input name="name" value="{{ o.name }}" minlength="2" maxlength="40" aria-label="Renommer">
+      <button type="submit" name="action" value="rename" class="btn">Renommer</button>
+      {% if o.is_active %}
+      <button type="submit" name="action" value="deactivate" class="btn">Désactiver</button>
+      {% else %}
+      <button type="submit" name="action" value="activate" class="btn">Réactiver</button>
+      {% endif %}
+    </form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

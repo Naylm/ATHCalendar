@@ -1,0 +1,51 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>{{ event.date|date:'l j F Y' }} — {{ period_label|default:event.period.label }}</h1>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" name="action" value="update" class="btn btn-primary">Enregistrer</button>
+  </form>
+  <form method="post" class="inline-actions">
+    {% csrf_token %}
+    {% if event.status == 'cancelled' %}
+    <button type="submit" name="action" value="restore" class="btn">Restaurer (reste fermée)</button>
+    {% else %}
+    <button type="submit" name="action" value="cancel" class="btn btn-danger">Annuler la date</button>
+    {% endif %}
+    {% if event.registrations_open %}
+    <button type="submit" name="action" value="close" class="btn">Fermer les inscriptions</button>
+    {% else %}
+    <button type="submit" name="action" value="open" class="btn">Ouvrir les inscriptions</button>
+    {% endif %}
+  </form>
+</div>
+<h2>Inscriptions</h2>
+<ul class="event-list">
+  {% for reg in registrations %}
+  <li class="card">
+    <strong>{{ reg.organizer_name }}</strong> — {{ reg.get_state_display }}
+    {% if reg.note %}<p>Note&nbsp;: {{ reg.note }}</p>{% endif %}
+    <p class="muted">v{{ reg.version }}</p>
+  </li>
+  {% empty %}<li class="card muted">Aucune inscription.</li>
+  {% endfor %}
+</ul>
+{% if not event.period.is_archived %}
+<details class="card">
+  <summary>Correction d'inscription (Bureau)</summary>
+  <form method="post">
+    {% csrf_token %}
+    <p><label>Pseudo
+      <select name="organizer">
+        {% for o in organizers %}<option value="{{ o.pk }}">{{ o.name }}</option>{% endfor %}
+      </select></label></p>
+    <p><label>Action
+      <select name="state"><option value="active">Inscrire</option><option value="withdrawn">Retirer</option></select></label></p>
+    <p><label>Note <input name="note" maxlength="500"></label></p>
+    <button type="submit" name="action" value="registration" class="btn">Appliquer</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+staticfiles/
+secrets/
+.env
+.git/
+test-results/
+.ruff_cache/
+*.sqlite3*

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>{% block title %}ATH Calendar{% endblock %}</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body data-page="{% block page_id %}{% endblock %}">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/">ATH Calendar</a>
+      <nav class="top-nav">
+        <a href="/">Planning</a>
+        <a href="/mes-inscriptions/">Mes inscriptions</a>
+        <a href="/bureau/">Bureau</a>
+      </nav>
+    </div>
+    <div class="acting-bar" id="acting-bar" hidden>
+      <span>Vous agissez pour&nbsp;: <strong id="acting-name">…</strong></span>
+      <button type="button" class="link-btn" id="change-pseudo">Changer</button>
+    </div>
+  </header>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+  <nav class="bottom-nav">
+    <a href="/" aria-label="Planning">Planning</a>
+    <a href="/mes-inscriptions/" aria-label="Mes inscriptions">Mes inscriptions</a>
+    <a href="/bureau/" aria-label="Bureau">Bureau</a>
+  </nav>
+  <div class="modal" id="pseudo-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pseudo-modal-title">
+    <div class="modal-card">
+      <h2 id="pseudo-modal-title">Pour quel pseudo&nbsp;?</h2>
+      <p class="muted">Choix libre : sélectionnez un pseudo existant ou créez-en un. Ce n'est pas une authentification.</p>
+      <ul class="pseudo-list" id="pseudo-list"></ul>
+      <form id="pseudo-create-form">
+        <label for="pseudo-new-name">Nouveau pseudo</label>
+        <input id="pseudo-new-name" name="name" maxlength="40" minlength="2" autocomplete="off">
+        <button type="submit" class="btn">Créer et utiliser</button>
+      </form>
+      <p class="form-error" id="pseudo-error" role="alert" hidden></p>
+      <button type="button" class="link-btn" id="pseudo-close">Fermer</button>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="{% static 'js/api.js' %}"></script>
+  <script src="{% static 'js/registrations.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

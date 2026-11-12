@@ -1,0 +1,46 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Nouvelle période</h1>
+{% if messages %}
+<ul class="messages" role="alert">
+  {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
+</ul>
+{% endif %}
+<form method="post" class="card">
+  {% csrf_token %}
+  {{ form.label.errors }}
+  <p><label for="id_label">Libellé</label>{{ form.label }}</p>
+  <p><label for="id_start_date">Début</label>{{ form.start_date }}</p>
+  <p><label for="id_end_date">Fin</label>{{ form.end_date }}</p>
+  {{ form.creation_key }}
+  {{ form.selected_dates }}
+  {% if preview and preview.overlaps %}
+  <fieldset class="overlap-warning">
+    <legend>Dates déjà présentes dans une autre période</legend>
+    <ul>
+      {% for o in preview.overlaps %}
+      <li>{{ o.date }} — déjà dans : {{ o.periods|join:', ' }}</li>
+      {% endfor %}
+    </ul>
+    <label>{{ form.confirm_overlap }} Confirmer la création malgré le recouvrement</label>
+  </fieldset>
+  {% endif %}
+  <div class="actions">
+    <button type="submit" name="action" value="preview" class="btn">Prévisualiser les week-ends</button>
+    <button type="submit" name="action" value="create" class="btn btn-primary">Créer le planning</button>
+  </div>
+</form>
+{% if preview %}
+<section class="card">
+  <h2>Aperçu : {{ preview.total }} week-ends</h2>
+  <p class="muted">Décochez les dates à ne pas créer, puis validez. Des dates en semaine pourront être ajoutées ensuite.</p>
+  <ul class="preview-list" id="preview-list">
+    {% for day in preview.dates %}
+    <li><label><input type="checkbox" class="preview-check" value="{{ day|date:'Y-m-d' }}" checked> {{ day|date:'l j F Y' }}</label></li>
+    {% endfor %}
+  </ul>
+</section>
+{% load static %}
+<script src="{% static 'js/bureau.js' %}" defer></script>
+{% endif %}
+{% endblock %}

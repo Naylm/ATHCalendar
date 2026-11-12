@@ -1,0 +1,26 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Journal des changements</h1>
+<form method="get" class="card filters">
+  <label>Période
+    <select name="period">
+      <option value="">Toutes</option>
+      {% for p in periods %}<option value="{{ p.pk }}">{{ p.label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Date (UUID) <input name="event"></label>
+  <label>Pseudo/acteur <input name="pseudo"></label>
+  <label>Action <input name="action" placeholder="registration.set"></label>
+  <button type="submit" class="btn">Filtrer</button>
+</form>
+<ul class="event-list">
+  {% for e in entries %}
+  <li class="card">
+    <p><strong>{{ e.action }}</strong> — {{ e.target_type }} <code>{{ e.target_id|slice:':8' }}</code></p>
+    <p class="muted">{{ e.created_at|date:'j F Y H:i' }} · {% if e.actor_type == 'bureau' %}Bureau{% else %}Public ({{ e.actor_label }}){% endif %}</p>
+    {% if e.before %}<details><summary>Avant / après</summary><pre>{{ e.before|pprint }}→{{ e.after|pprint }}</pre></details>{% endif %}
+  </li>
+  {% empty %}<li class="card muted">Aucune entrée.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

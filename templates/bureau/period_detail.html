@@ -69,7 +69,7 @@
         {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
         {% if not event.registrations_open %}<span class="tag tag-muted">Fermée</span>{% endif %}
       </div>
-      <p class="muted">{{ event.payload.active_count }} organisateur(s) · min {{ event.min_organizers }}{% if event.capacity %} · cap {{ event.capacity }}{% endif %} · v{{ event.version }}</p>
+      <p class="muted">{{ event.payload.active_count }} organisateur(s) · min {{ event.min_organizers }}{% if event.capacity %} · cap {{ event.capacity }}{% endif %}</p>
       <a class="btn" href="/bureau/dates/{{ event.pk }}/">Modifier</a>
     </li>
     {% endfor %}

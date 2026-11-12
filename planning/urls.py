@@ -23,6 +23,11 @@ urlpatterns = [
         api_public.period_revision,
         name="api_revision",
     ),
+    path(
+        "api/periods/<uuid:period_id>/live/",
+        api_public.period_live,
+        name="api_period_live",
+    ),
     path("api/organizers/", api_public.organizers_list, name="api_organizers"),
     path(
         "api/organizers/create/",
@@ -38,6 +43,11 @@ urlpatterns = [
         "api/events/<uuid:event_id>/registration/",
         api_public.event_registration,
         name="api_event_registration",
+    ),
+    path(
+        "api/events/<uuid:event_id>/type/",
+        api_public.event_type,
+        name="api_event_type",
     ),
     path(
         "api/registrations/batch/",

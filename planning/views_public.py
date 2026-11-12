@@ -40,29 +40,13 @@ def index(request):
         period = selectors.default_period(requested)
     except ServiceError:
         period = None
-    view = request.GET.get("vue", "liste")
-    if view not in ("liste", "calendrier"):
-        view = "liste"
     filtre = request.GET.get("filtre")
     if period:
-        events, filtre = selectors.filtered_events(period, filtre)
-        events = list(events)
-        for event in events:
-            event.payload = selectors.event_payload(event)
+        context = selectors.planning_context(period, filtre)
     else:
-        events, filtre = [], "avenir"
-    return render(
-        request,
-        "planning/index.html",
-        {
-            "period": period,
-            "events": events,
-            "view": view,
-            "filtre": filtre,
-            "nav": _period_nav(None, period.pk if period else ""),
-            "organizers": selectors.public_organizers(),
-        },
-    )
+        context = {"period": None, "months": [], "game_types": [], "filtre": "avenir"}
+    context["nav"] = _period_nav(None, period.pk if period else "")
+    return render(request, "planning/index.html", context)
 
 
 @ensure_csrf_cookie

@@ -44,6 +44,7 @@
     if (!el) return;
     el.textContent = message;
     el.className = "toast" + (isError ? " error" : "");
+    el.setAttribute("role", isError ? "alert" : "status");
     el.hidden = false;
     clearTimeout(el._timer);
     el._timer = setTimeout(function () { el.hidden = true; }, 5000);

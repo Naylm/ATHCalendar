@@ -4,7 +4,7 @@ from django.db import models
 
 
 class SiteSettings(models.Model):
-    site_name = models.CharField(max_length=120, default="ATH Calendar")
+    site_name = models.CharField(max_length=120, default="Calendrier organisateurs ATH")
     active_period = models.ForeignKey("Period", null=True, blank=True, on_delete=models.SET_NULL)
     default_min_organizers = models.PositiveSmallIntegerField(default=2)
     default_capacity = models.PositiveIntegerField(null=True, blank=True)

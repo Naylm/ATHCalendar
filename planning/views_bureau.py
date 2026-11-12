@@ -25,7 +25,6 @@ from .models import (
 )
 from .permissions import actor_for_request, bureau_page, is_bureau
 from .services import events as event_services
-from .services import organizers as organizer_services
 from .services import periods as period_services
 from .services import registrations as registration_services
 from .services import types as type_services
@@ -409,80 +408,7 @@ def events_batch(request, period_id):
 @bureau_page
 @require_http_methods(["GET", "POST"])
 def organizers_list(request):
-    if request.method == "POST":
-        action = request.POST.get("action")
-        try:
-            if action == "create":
-                form = forms.OrganizerNameForm(request.POST)
-                if form.is_valid():
-                    organizer_services.create_organizer(
-                        form.cleaned_data["name"], actor=_bureau_actor(request)
-                    )
-            elif action == "rename":
-                organizer_services.rename_organizer(
-                    request.POST["organizer"],
-                    actor=_bureau_actor(request),
-                    name=request.POST.get("name", ""),
-                )
-            elif action == "deactivate":
-                organizer_services.set_organizer_active(
-                    request.POST["organizer"],
-                    actor=_bureau_actor(request),
-                    active=False,
-                )
-            elif action == "activate":
-                organizer_services.set_organizer_active(
-                    request.POST["organizer"],
-                    actor=_bureau_actor(request),
-                    active=True,
-                )
-            elif action == "merge":
-                note_choices = {
-                    key.removeprefix("note_"): value
-                    for key, value in request.POST.items()
-                    if key.startswith("note_")
-                }
-                organizer_services.merge_organizers(
-                    request.POST["source"],
-                    request.POST["target"],
-                    actor=_bureau_actor(request),
-                    note_choices=note_choices or None,
-                )
-        except ServiceError as exc:
-            _flash_error(request, exc)
-        return redirect("/bureau/pseudos/")
-    organizers = Organizer.objects.order_by("name")
-    conflicts = None
-    if request.GET.get("fusion_source") and request.GET.get("fusion_target"):
-        try:
-            source = organizer_services.get_organizer(request.GET["fusion_source"])
-            target = organizer_services.canonical(
-                organizer_services.get_organizer(request.GET["fusion_target"])
-            )
-            shared = []
-            target_regs = {r.event_id: r for r in Registration.objects.filter(organizer=target)}
-            for reg in Registration.objects.select_related("event", "event__period").filter(
-                organizer=source
-            ):
-                if reg.event.period.is_archived:
-                    continue
-                existing = target_regs.get(reg.event_id)
-                if existing is not None and existing.note != reg.note:
-                    shared.append(
-                        {
-                            "event": reg.event,
-                            "source_note": reg.note,
-                            "target_note": existing.note,
-                        }
-                    )
-            conflicts = {"source": source, "target": target, "shared": shared}
-        except ServiceError as exc:
-            _flash_error(request, exc)
-    return render(
-        request,
-        "bureau/organizers.html",
-        {"organizers": organizers, "conflicts": conflicts},
-    )
+    return redirect("/bureau/")
 
 
 @bureau_page

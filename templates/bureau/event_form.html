@@ -31,7 +31,6 @@
   <li class="card">
     <strong>{{ reg.organizer_name }}</strong> — {{ reg.get_state_display }}
     {% if reg.note %}<p>Note&nbsp;: {{ reg.note }}</p>{% endif %}
-    <p class="muted">v{{ reg.version }}</p>
   </li>
   {% empty %}<li class="card muted">Aucune inscription.</li>
   {% endfor %}

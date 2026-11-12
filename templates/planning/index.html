@@ -2,9 +2,11 @@
 {% load static %}
 {% block page_id %}planning{% endblock %}
 {% block content %}
+<h1 id="planning-title">Planning</h1>
 {% if period %}
 <div class="page-head">
-  <h1>{{ period.label }}{% if period.is_archived %} <span class="tag tag-muted">Archive</span>{% endif %}</h1>
+  <h2>{{ period.label }}{% if period.is_archived %} <span class="tag tag-muted">Archive</span>{% endif %}</h2>
+  {% if nav.periods|length > 1 %}
   <form method="get" class="period-select">
     <label for="period">Période</label>
     <select id="period" name="period" class="js-auto-submit">
@@ -12,90 +14,31 @@
       <option value="{{ p.id }}" {% if p.selected %}selected{% endif %}>{{ p.label }}</option>
       {% endfor %}
     </select>
-    <input type="hidden" name="vue" value="{{ view }}">
     <input type="hidden" name="filtre" value="{{ filtre }}">
   </form>
-</div>
-
-<div class="tabs" role="tablist">
-  <a class="tab {% if view == 'liste' %}active{% endif %}" href="?period={{ period.pk }}&vue=liste&filtre={{ filtre }}">Liste</a>
-  <a class="tab {% if view == 'calendrier' %}active{% endif %}" href="?period={{ period.pk }}&vue=calendrier&filtre={{ filtre }}">Calendrier</a>
-</div>
-
-<div class="filters">
-  <a class="chip {% if filtre == 'avenir' %}active{% endif %}" href="?period={{ period.pk }}&vue={{ view }}&filtre=avenir">À venir</a>
-  <a class="chip {% if filtre == 'renfort' %}active{% endif %}" href="?period={{ period.pk }}&vue={{ view }}&filtre=renfort">Renfort nécessaire</a>
-  <a class="chip {% if filtre == 'toutes' %}active{% endif %}" href="?period={{ period.pk }}&vue={{ view }}&filtre=toutes">Toutes</a>
-</div>
-
-{% if view == 'calendrier' %}
-<div id="calendar-root"
-     data-period-id="{{ period.pk }}"
-     data-revision="{{ period.revision }}"
-     data-filtre="{{ filtre }}"></div>
-<div id="day-detail" class="card" hidden></div>
-{% else %}
-<ul class="event-list" id="event-list"
-    data-period-id="{{ period.pk }}"
-    data-revision="{{ period.revision }}">
-  {% for event in events %}
-  <li class="card event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}"
-      data-event-id="{{ event.pk }}"
-      data-version="{{ event.version }}"
-      data-status="{{ event.status }}"
-      data-open="{{ event.registrations_open|yesno:'true,false' }}"
-      data-past="{{ event.payload.is_past|yesno:'true,false' }}"
-      data-archived="{{ period.is_archived|yesno:'true,false' }}">
-    <div class="event-head">
-      <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
-      <span class="tag {{ event.payload.type_class }}">{{ event.payload.type_label }}</span>
-      {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
-      {% if not event.registrations_open and event.payload.status != 'cancelled' %}<span class="tag tag-muted">Inscriptions fermées</span>{% endif %}
-      {% if event.payload.is_past %}<span class="tag tag-muted">Passée</span>{% endif %}
-    </div>
-    {% if event.title %}<p class="event-title">{{ event.title }}</p>{% endif %}
-    <p class="muted">{{ event.payload.active_count }} organisateur(s) · minimum {{ event.min_organizers }}{% if event.capacity %} · capacité {{ event.capacity }}{% endif %}</p>
-    <p class="organizers-inline">
-      {% for reg in event.payload.organizers %}{{ reg.organizer_name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-    </p>
-    <div class="event-status">
-      {% if event.payload.status == 'cancelled' %}
-        <span class="fill-badge fill-none">Annulée par le Bureau</span>
-      {% elif event.payload.fill == 'none' %}
-        <span class="fill-badge fill-none">Aucun organisateur</span>
-      {% elif event.payload.fill == 'needs_more' %}
-        <span class="fill-badge fill-needs_more">Renfort nécessaire</span>
-      {% else %}
-        <span class="fill-badge fill-{{ event.payload.fill }}">Équipe suffisante</span>
-      {% endif %}
-      <a class="btn" href="/dates/{{ event.pk }}/">Voir / gérer</a>
-      <button type="button" class="btn btn-primary" data-action="quick-register" hidden>M'inscrire</button>
-    </div>
-    <label class="batch-check" hidden><input type="checkbox" class="batch-select" value="{{ event.pk }}"> Sélectionner</label>
-  </li>
-  {% endfor %}
-</ul>
-<div class="batch-bar">
-  <button type="button" class="btn" id="toggle-batch">Choisir plusieurs dates</button>
-  <div id="batch-actions" hidden>
-    <button type="button" class="btn btn-primary" id="batch-join">M'inscrire aux dates cochées</button>
-    <button type="button" class="btn" id="batch-leave">Me retirer des dates cochées</button>
-  </div>
+  {% endif %}
 </div>
 {% endif %}
-<p class="muted" id="refresh-note" hidden>Des changements ont eu lieu ailleurs. <button type="button" class="link-btn" id="reload-page">Recharger</button></p>
+
+{% if period %}
+<nav class="month-navigation" aria-label="Navigation par mois"{% if not months %} hidden{% endif %}>
+  <button type="button" data-month-step="-1" aria-label="Mois précédent">‹</button>
+  <h2 id="month-title" aria-live="polite" aria-atomic="true">{% if months %}{{ months.0.date|date:'F Y' }}{% endif %}</h2>
+  <button type="button" data-month-step="1" aria-label="Mois suivant">›</button>
+</nav>
+<div id="event-list"
+     data-period-id="{{ period.pk }}"
+     data-revision="{{ period.revision }}"
+     data-filtre="{{ filtre }}">
+  {% include "planning/_months.html" %}
+</div>
 {% else %}
-<section class="empty-state card">
-  <h1>ATH Calendar</h1>
-  <p>Le planning de l'association n'est pas encore disponible.</p>
-  <p>Le Bureau pourra créer la première période depuis l'espace dédié.</p>
-  <a class="btn" href="/bureau/">Accès Bureau</a>
-</section>
+<p class="muted">Aucune date prévue.</p>
 {% endif %}
 {% endblock %}
 {% block scripts %}
-{% if period %}
-<script src="{% static 'js/planning.js' %}" defer></script>
-{% if view == 'calendrier' %}<script src="{% static 'js/calendar.js' %}" defer></script>{% endif %}
-{% endif %}
+<script src="{% static 'js/month_navigation.js' %}" defer></script>
+<script src="{% static 'js/live_planning.js' %}" defer></script>
+<script src="{% static 'js/signup.js' %}" defer></script>
+<script src="{% static 'js/day_types.js' %}" defer></script>
 {% endblock %}

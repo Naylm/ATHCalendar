@@ -17,6 +17,7 @@ from .periods import (
     _require_not_archived,
     bump_revision,
     get_period,
+    paris_today,
 )
 from .validators import (
     optional_str,
@@ -204,6 +205,42 @@ def update_event(
         audit.log(
             actor=actor,
             action="event.update",
+            target=event,
+            before=before,
+            after=audit.snapshot(event),
+        )
+        return event
+
+
+def set_public_game_type(event_id, *, actor: Actor, game_type_id, expected_version):
+    expected_version = require_int(
+        expected_version, "Version", minimum=1, field="expected_event_version"
+    )
+    event = get_event(event_id)
+    with write_transaction():
+        event = Event.objects.select_related("period").get(pk=event.pk)
+        period = event.period
+        _require_not_archived(period)
+        if event.status != Event.Status.SCHEDULED:
+            raise ClosedConflict("Cette date a été annulée par le Bureau.")
+        if not event.registrations_open:
+            raise ClosedConflict("Les inscriptions sont fermées pour cette date.")
+        if event.date < paris_today():
+            raise ClosedConflict("Cette date est passée ; modification impossible.")
+        _check_version(event, expected_version)
+        game_type = _resolve_type(game_type_id)
+        requested = game_type.pk if game_type is not None else None
+        if requested == event.game_type_id:
+            return event
+        before = audit.snapshot(event)
+        event.game_type = game_type
+        event.type_label = game_type.name if game_type else ""
+        event.version += 1
+        event.save(update_fields=["game_type", "type_label", "version", "updated_at"])
+        bump_revision(period)
+        audit.log(
+            actor=actor,
+            action="event.type_public",
             target=event,
             before=before,
             after=audit.snapshot(event),

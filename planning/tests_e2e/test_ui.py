@@ -192,57 +192,65 @@ class PublicUiTests(unittest.TestCase):
         page.page.goto(self.server.url + url_path)
         return browser, page
 
-    def test_first_signup_new_pseudo_and_picker_cancel(self):
+    def test_first_signup_name_inline(self):
         with LiveServer() as self.server:
             self.server.seed(seed_period_script())
+            event_id = self.server.query(
+                "from planning.models import Event;print(Event.objects.order_by('date').first().pk)"
+            )
             with browser_tests()() as pw:
+                from playwright.sync_api import expect
+
                 browser, tracked = self._page(pw)
                 page = tracked.page
                 before = self.server.query(
                     "from planning.models import Registration;print(Registration.objects.count())"
                 )
-                page.click("#toggle-batch")
-                page.locator(".batch-select").first.check()
-                page.click("#batch-join")
-                page.click("#pseudo-close")
-                after_cancel = self.server.query(
+                row = page.locator(f"#date-{event_id}")
+                row.locator("input[name=name]").fill("Pseudo E2E")
+                unchanged = self.server.query(
                     "from planning.models import Registration;print(Registration.objects.count())"
                 )
-                assert after_cancel == before
-                page.click("#batch-join")
-                page.fill("#pseudo-new-name", "Pseudo E2E")
-                with (
-                    expect_ok_response(page, "POST", "/api/registrations/batch/"),
-                    expect_ok_response(page, "POST", "/api/organizers/"),
-                ):
-                    page.click("#pseudo-create-form button[type=submit]")
-                page.wait_for_timeout(400)
+                assert unchanged == before
+                with expect_ok_response(page, "PUT", "/registration/"):
+                    row.locator("button[type=submit]").click()
+                expect(page.locator(f"#date-{event_id} .event-names")).to_contain_text(
+                    "Pseudo E2E", timeout=8000
+                )
                 created = self.server.query(
                     "from planning.models import Registration;print(Registration.objects.count())"
                 )
                 assert created == "1", created
-                page.wait_for_selector("#acting-bar:not([hidden])")
+                assert page.evaluate("document.getElementById('pseudo-modal')") is None
+                assert page.evaluate("document.getElementById('acting-bar')") is None
                 page.screenshot(path=str(SCREENSHOT_DIR / "signup.png"), full_page=False)
                 tracked.assert_clean()
                 browser.close()
 
-    def test_picker_existing_pseudo(self):
+    def test_inline_existing_name(self):
         with LiveServer() as self.server:
             self.server.seed(seed_period_script())
+            event_id = self.server.query(
+                "from planning.models import Event;print(Event.objects.order_by('date').first().pk)"
+            )
             with browser_tests()() as pw:
+                from playwright.sync_api import expect
+
                 browser, tracked = self._page(pw)
                 page = tracked.page
-                page.click("#toggle-batch")
-                page.locator(".batch-select").first.check()
-                page.click("#batch-join")
-                with expect_ok_response(page, "POST", "/api/registrations/batch/"):
-                    page.click("text=Volontaire E2E")
+                row = page.locator(f"#date-{event_id}")
+                row.locator("input[name=name]").fill("Volontaire E2E")
+                with expect_ok_response(page, "PUT", "/registration/"):
+                    row.locator("button[type=submit]").click()
+                expect(page.locator(f"#date-{event_id} .event-names")).to_contain_text(
+                    "Volontaire E2E", timeout=8000
+                )
                 regs = self.server.query(
                     "from planning.models import Registration;"
                     "print(Registration.objects.filter(state='active').count())"
                 )
                 assert regs == "1", regs
-                page.wait_for_selector("#acting-bar:not([hidden])")
+                assert page.evaluate("document.getElementById('pseudo-modal')") is None
                 page.screenshot(
                     path=str(SCREENSHOT_DIR / "existing-pseudo.png"),
                     full_page=False,
@@ -422,38 +430,62 @@ registrations.set_registration(
                 tracked.assert_clean()
                 browser.close()
 
-    def test_calendar_labels_exact_in_timezones(self):
+    def test_list_labels_exact_in_timezones(self):
         with LiveServer() as self.server:
             self.server.seed(seed_period_script())
-            event_date = self.server.query(
+            event = self.server.query(
                 "from planning.models import Event;"
-                "print(Event.objects.order_by('date').first().date.isoformat())"
+                "e = Event.objects.order_by('date').first();"
+                "print(str(e.pk) + '|' + e.date.isoformat())"
             )
-            expected_weekday = [
-                "lundi",
-                "mardi",
-                "mercredi",
-                "jeudi",
-                "vendredi",
-                "samedi",
-                "dimanche",
-            ][date.fromisoformat(event_date).weekday()]
+            event_id, event_date = event.split("|")
+            day = date.fromisoformat(event_date)
+            expected_label = "{} {} {} {}".format(
+                [
+                    "lundi",
+                    "mardi",
+                    "mercredi",
+                    "jeudi",
+                    "vendredi",
+                    "samedi",
+                    "dimanche",
+                ][day.weekday()],
+                day.day,
+                [
+                    "janvier",
+                    "février",
+                    "mars",
+                    "avril",
+                    "mai",
+                    "juin",
+                    "juillet",
+                    "août",
+                    "septembre",
+                    "octobre",
+                    "novembre",
+                    "décembre",
+                ][day.month - 1],
+                day.year,
+            )
             with browser_tests()() as pw:
                 browser = pw.chromium.launch()
                 for zone in ("Pacific/Kiritimati", "America/Los_Angeles"):
                     context = browser.new_context(timezone_id=zone)
                     tracked = TrackedPage(context.new_page())
-                    tracked.page.goto(self.server.url + "/?vue=calendrier")
-                    tracked.page.wait_for_selector(".calendar-grid .cal-day", timeout=5000)
-                    labels = tracked.page.eval_on_selector_all(
-                        ".cal-day", "els => els.map(e => e.dataset.date)"
+                    tracked.page.goto(self.server.url + "/")
+                    tracked.page.wait_for_selector(".event-card", timeout=5000)
+                    row = tracked.page.locator(f"#date-{event_id}")
+                    assert row.get_attribute("data-event-id") == event_id, (zone, event_id)
+                    label = row.locator(".event-date").text_content().strip()
+                    assert label == expected_label, (zone, label, expected_label)
+                    date_box = row.locator(".event-date").bounding_box()
+                    assert date_box is None or date_box["width"] <= 1, (zone, date_box)
+                    weekday = expected_label.split(" ")[0]
+                    assert row.locator(".date-weekday").text_content().strip() == weekday
+                    assert row.locator(".date-number").text_content().strip() == str(day.day).zfill(
+                        2
                     )
-                    assert event_date in labels, (zone, labels[:5])
-                    aria = tracked.page.eval_on_selector(
-                        f".cal-day[data-date='{event_date}']",
-                        "el => el.getAttribute('aria-label')",
-                    )
-                    assert aria.startswith(expected_weekday), (zone, aria)
+                    assert row.locator(".date-number").is_visible()
                     tracked.assert_clean()
                     context.close()
                 browser.close()

@@ -1,0 +1,11 @@
+{% for month in months %}
+<section class="month-group" data-month="{{ month.date|date:'Y-m' }}" data-label="{{ month.date|date:'F Y' }}" aria-labelledby="month-title"{% if not forloop.first %} hidden{% endif %}>
+  <ul class="event-list">
+    {% for event in month.events %}
+    {% include "planning/_event_row.html" %}
+    {% endfor %}
+  </ul>
+</section>
+{% empty %}
+<p class="planning-empty muted">Aucune date prévue.</p>
+{% endfor %}

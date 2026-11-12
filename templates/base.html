@@ -6,31 +6,29 @@
   <meta name="robots" content="noindex, nofollow, noarchive">
   <title>{% block title %}{{ ath_site_name }}{% endblock %}</title>
   {% load static %}
+  <link rel="icon" type="image/png" href="{% static 'PATCH_ATH.png' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body data-page="{% block page_id %}{% endblock %}">
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="/">{{ ath_site_name }}</a>
-      <nav class="top-nav">
-        <a href="/">Planning</a>
-        <a href="/mes-inscriptions/">Mes inscriptions</a>
-        <a href="/bureau/">Bureau</a>
+      <a class="brand" href="/"><img src="{% static 'PATCH_ATH.png' %}" alt="" width="64" height="64"><span>{{ ath_site_name }}</span></a>
+      <nav class="top-nav" aria-label="Navigation principale">
+        <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Planning</a>
+        <a href="/bureau/"{% if request.path|slice:':8' == '/bureau/' %} aria-current="page"{% endif %}>Bureau</a>
       </nav>
     </div>
+    {% if request.resolver_match.url_name == 'event_detail' or request.resolver_match.url_name == 'my_registrations' %}
     <div class="acting-bar" id="acting-bar" hidden>
       <span>Vous agissez pour&nbsp;: <strong id="acting-name">…</strong></span>
       <button type="button" class="link-btn" id="change-pseudo">Changer</button>
     </div>
+    {% endif %}
   </header>
   <main class="content">
     {% block content %}{% endblock %}
   </main>
-  <nav class="bottom-nav">
-    <a href="/" aria-label="Planning">Planning</a>
-    <a href="/mes-inscriptions/" aria-label="Mes inscriptions">Mes inscriptions</a>
-    <a href="/bureau/" aria-label="Bureau">Bureau</a>
-  </nav>
+  {% if request.resolver_match.url_name == 'event_detail' or request.resolver_match.url_name == 'my_registrations' %}
   <div class="modal" id="pseudo-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pseudo-modal-title">
     <div class="modal-card">
       <h2 id="pseudo-modal-title">Pour quel pseudo&nbsp;?</h2>
@@ -46,9 +44,12 @@
       <button type="button" class="link-btn" id="pseudo-close">Fermer</button>
     </div>
   </div>
+  {% endif %}
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script src="{% static 'js/api.js' %}"></script>
+  {% if request.resolver_match.url_name == 'event_detail' or request.resolver_match.url_name == 'my_registrations' %}
   <script src="{% static 'js/registrations.js' %}"></script>
+  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,7 +1,10 @@
+import itertools
+
 from django.db.models import Count, F, Prefetch, Q
 
 from planning.models import (
     Event,
+    GameType,
     Organizer,
     Period,
     Registration,
@@ -158,3 +161,23 @@ def organizer_registrations(organizer, *, include_past=False, today=None):
 
 def public_organizers():
     return Organizer.objects.filter(is_active=True, merged_into__isnull=True).order_by("name")
+
+
+def planning_context(period, filtre=None):
+    events, filtre = filtered_events(period, filtre)
+    events = list(events)
+    for event in events:
+        event.payload = event_payload(event)
+    months = [
+        {"date": group[0].date, "events": group}
+        for group in (
+            list(group)
+            for _, group in itertools.groupby(events, key=lambda e: (e.date.year, e.date.month))
+        )
+    ]
+    return {
+        "period": period,
+        "months": months,
+        "game_types": GameType.objects.filter(is_active=True).order_by("name"),
+        "filtre": filtre,
+    }

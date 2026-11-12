@@ -2,17 +2,21 @@ from dataclasses import replace
 
 from django.conf import settings as django_settings
 from django.http import JsonResponse
+from django.template.loader import render_to_string
+from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET, require_http_methods
 
 from . import selectors
 from .errors import ValidationFailed
 from .permissions import (
     actor_for_request,
+    is_bureau,
     limit_rate,
     organizer_from_body,
     parse_json_body,
     service_errors,
 )
+from .services import events as event_services
 from .services import organizers as organizer_services
 from .services import periods as period_services
 from .services import registrations as registration_services
@@ -76,6 +80,29 @@ def period_planning(request, period_id):
 def period_revision(request, period_id):
     period = period_services.get_period(period_id)
     return JsonResponse({"revision": period.revision})
+
+
+@cache_control(no_store=True)
+@service_errors
+@require_GET
+def period_live(request, period_id):
+    period = period_services.get_period(period_id)
+    revision = period.revision
+    response_data = {"revision": revision, "changed": True}
+    revision_param = request.GET.get("revision")
+    if revision_param is not None:
+        if not (
+            revision_param.isascii() and revision_param.isdigit() and len(revision_param) <= 20
+        ):
+            raise ValidationFailed("Révision invalide.", fields={"revision": "Format invalide."})
+        if int(revision_param) == revision:
+            response_data["changed"] = False
+    if response_data["changed"]:
+        context = selectors.planning_context(period, request.GET.get("filtre"))
+        response_data["html"] = render_to_string("planning/_months.html", context, request=request)
+    response = JsonResponse(response_data)
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @require_GET
@@ -182,6 +209,54 @@ def event_registration(request, event_id):
             }
         }
     )
+
+
+@service_errors
+@require_http_methods(["PUT"])
+@limit_rate(
+    category="public_write",
+    limit=django_settings.PUBLIC_WRITE_LIMIT,
+    window_seconds=django_settings.PUBLIC_WRITE_WINDOW,
+)
+def event_type(request, event_id):
+    body = parse_json_body(request)
+    _reject_privileged(body)
+    for key in body:
+        if key not in ("game_type_id", "expected_event_version"):
+            raise ValidationFailed(
+                "Ce champ ne peut pas être défini par le client.",
+                fields={key: "Champ non autorisé."},
+            )
+    if "game_type_id" not in body or "expected_event_version" not in body:
+        raise ValidationFailed(
+            "Le type et la version de la date affichée sont requis.",
+            fields={
+                "game_type_id": "Champ manquant.",
+                "expected_event_version": "Champ manquant.",
+            },
+        )
+    game_type_id = body["game_type_id"]
+    if game_type_id is not None and (not isinstance(game_type_id, str) or not game_type_id):
+        raise ValidationFailed(
+            "Type de partie invalide.", fields={"game_type_id": "Type invalide."}
+        )
+    expected_event_version = _strict_version(
+        body["expected_event_version"], "expected_event_version", minimum=1
+    )
+    if request.user.is_authenticated and is_bureau(request.user):
+        actor = actor_for_request(request)
+    else:
+        actor = replace(
+            Actor.declared("Visiteur"),
+            request_id=getattr(request, "request_id", "") or "",
+        )
+    event = event_services.set_public_game_type(
+        event_id,
+        actor=actor,
+        game_type_id=game_type_id,
+        expected_version=expected_event_version,
+    )
+    return JsonResponse({"event": selectors.event_payload(event)})
 
 
 def _strict_versions_map(versions, event_ids):

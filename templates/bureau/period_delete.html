@@ -1,0 +1,44 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Supprimer définitivement la période</h1>
+<div class="card">
+  <p><strong>{{ preview.period.label }}</strong> {% if preview.period.is_archived %}<span class="tag tag-muted">Archivée</span>{% endif %}</p>
+  <p class="muted">{{ preview.period.start_date|date:'j F Y' }} → {{ preview.period.end_date|date:'j F Y' }}</p>
+  <p>{{ preview.event_count }} date(s), {{ preview.registration_count }} inscription(s) seront supprimées.</p>
+  <p class="muted">Ce total inclut les dates masquées ou annulées ainsi que les inscriptions
+    retirées. La suppression est définitive et irréversible : exportez le
+    <a href="/bureau/exports/periode/{{ preview.period.pk }}.xlsx">tableau Excel</a>
+    ou effectuez une sauvegarde avant de continuer. Les pseudos restent réutilisables
+    et le journal du Bureau conserve la trace de cette action.</p>
+  {% if preview.is_active %}
+  <p class="muted"><strong>Cette période est active.</strong> Le pointeur actif sera effacé et le
+    planning public basculera sur une autre période disponible, ou restera vide.</p>
+  {% endif %}
+  {% if preview.period.is_archived %}
+  <p class="muted">Période archivée : la suppression est impossible. Rouvrez d'abord la période
+    depuis ses options si vous devez réellement la détruire.</p>
+  <p><a class="btn" href="/bureau/periodes/{{ preview.period.pk }}/">Retour à la période</a></p>
+  {% else %}
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.expected_version.errors }}
+    {{ form.expected_version }}
+    {{ form.expected_revision.errors }}
+    {{ form.expected_revision }}
+    {{ form.confirmation_label.errors }}
+    <p>
+      <label for="id_confirmation_label">{{ form.confirmation_label.label }}</label>
+      {{ form.confirmation_label }}
+    </p>
+    <p class="muted">Recopiez exactement : {{ preview.period.label }}</p>
+    {{ form.confirm_delete.errors }}
+    <p><label>{{ form.confirm_delete }} {{ form.confirm_delete.label }}</label></p>
+    <p class="inline-actions">
+      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+      <a class="btn" href="/bureau/periodes/{{ preview.period.pk }}/">Retour à la période</a>
+    </p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

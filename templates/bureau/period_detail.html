@@ -18,6 +18,9 @@
     <button type="submit" name="action" value="archive" class="btn btn-danger" data-confirm="Archiver cette période ? Elle deviendra en lecture seule.">Archiver</button>
     {% endif %}
   </form>
+  <p class="inline-actions">
+    <a class="btn btn-danger" href="/bureau/periodes/{{ period.pk }}/supprimer/">Supprimer la période</a>
+  </p>
   {% if missing_dates %}
   <details>
     <summary>Compléter les week-ends manquants ({{ missing_dates|length }})</summary>

@@ -130,6 +130,11 @@ du pied de page. Versions publiées par tags Git annotés `vX.Y.Z` et journal
 - Depuis la version 0.2.1, l'onglet et la route du récapitulatif public
   « Par personne » sont retirés. Les inscriptions et les exports Bureau
   restent disponibles ; les Options se trouvent en haut de la gestion d'une période.
+- Depuis la version 0.2.2, le Bureau peut supprimer définitivement une
+  période (`services/period_deletion.py`, route `.../supprimer/`) : recopie
+  exacte du libellé, case de confirmation, version et révision attendues ;
+  les périodes archivées doivent être rouvertes d'abord. La cascade retire
+  dates et inscriptions ; pseudos, types, autres périodes et journal restent.
 - Les données des rapports sont centralisées dans `planning/reports.py`.
   Les exports Excel/imprimables du Bureau conservent toutes les dates et
   l'historique ; les données utilisateur Excel restent du texte, jamais des

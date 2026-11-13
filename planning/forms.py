@@ -208,6 +208,21 @@ class DateVisibilityForm(forms.Form):
     )
 
 
+class PeriodDeleteForm(forms.Form):
+    confirmation_label = forms.CharField(
+        label="Libellé de la période",
+        max_length=120,
+        strip=False,
+        widget=forms.TextInput(attrs={"autocomplete": "off"}),
+    )
+    confirm_delete = forms.BooleanField(
+        required=True,
+        label="Je comprends que la suppression est définitive et irréversible.",
+    )
+    expected_version = forms.IntegerField(min_value=1, widget=forms.HiddenInput)
+    expected_revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+
+
 class PeriodSelectionForm(forms.Form):
     event_ids = forms.MultipleChoiceField(required=True)
     selection_action = forms.ChoiceField(

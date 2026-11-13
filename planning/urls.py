@@ -78,6 +78,11 @@ urlpatterns = [
         name="bureau_period_cleanup",
     ),
     path(
+        "bureau/periodes/<uuid:period_id>/supprimer/",
+        views_bureau.period_delete,
+        name="bureau_period_delete",
+    ),
+    path(
         "bureau/periodes/<uuid:period_id>/dates/nouvelle/",
         views_bureau.event_create,
         name="bureau_event_create",

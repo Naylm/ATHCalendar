@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 0.2.2
+
+- Suppression définitive d'une période par le Bureau, avec page de confirmation :
+  recopie exacte du libellé, case de confirmation, version et révision attendues.
+- Les périodes archivées doivent être rouvertes avant suppression ; la cascade
+  retire la période, ses dates et ses inscriptions. Pseudos, types, autres
+  périodes et journal du Bureau sont conservés.
+
 ## 0.2.1
 
 - Options remontées en haut de la gestion des périodes.

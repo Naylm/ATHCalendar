@@ -25,6 +25,7 @@ from .models import (
 )
 from .permissions import actor_for_request, bureau_page, is_bureau
 from .services import events as event_services
+from .services import period_deletion
 from .services import periods as period_services
 from .services import registrations as registration_services
 from .services import types as type_services
@@ -488,6 +489,49 @@ def period_cleanup(request, period_id):
         checked=set(request.POST.getlist("event_ids")),
     )
     return render(request, "bureau/period_cleanup.html", context)
+
+
+@bureau_page
+@require_http_methods(["GET", "POST"])
+def period_delete(request, period_id):
+    try:
+        preview = period_deletion.deletion_preview(period_id, actor=_bureau_actor(request))
+    except ServiceError as exc:
+        _flash_error(request, exc)
+        return redirect("/bureau/")
+    context = {"preview": preview, "form": None}
+    if preview.period.is_archived:
+        return render(request, "bureau/period_delete.html", context)
+    delete_url = f"/bureau/periodes/{preview.period.pk}/supprimer/"
+    if request.method == "GET":
+        context["form"] = forms.PeriodDeleteForm(
+            initial={
+                "expected_version": preview.period.version,
+                "expected_revision": preview.period.revision,
+            }
+        )
+        return render(request, "bureau/period_delete.html", context)
+    form = forms.PeriodDeleteForm(request.POST)
+    if form.is_valid():
+        try:
+            period_deletion.delete_period(
+                period_id,
+                actor=_bureau_actor(request),
+                expected_version=form.cleaned_data["expected_version"],
+                expected_revision=form.cleaned_data["expected_revision"],
+                confirmation_label=form.cleaned_data["confirmation_label"],
+                confirm_delete=form.cleaned_data["confirm_delete"],
+            )
+        except ServiceError as exc:
+            _flash_error(request, exc)
+            return redirect(delete_url)
+        messages.success(
+            request,
+            f"Période « {preview.period.label} » supprimée définitivement.",
+        )
+        return redirect("/bureau/")
+    context["form"] = form
+    return render(request, "bureau/period_delete.html", context)
 
 
 @bureau_page

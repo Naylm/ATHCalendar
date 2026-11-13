@@ -19,6 +19,8 @@
 
 * { box-sizing: border-box; }
 
+html { touch-action: manipulation; }
+
 [hidden] { display: none !important; }
 
 body {
@@ -202,7 +204,7 @@ body[data-page="planning"] .event-date {
   border: 0;
 }
 .date-weekday { font-weight: 700; }
-#event-list { overflow-anchor: none; touch-action: pan-y pinch-zoom; }
+#event-list { overflow-anchor: none; touch-action: manipulation; }
 .event-names {
   grid-column: 2;
   margin: 0;

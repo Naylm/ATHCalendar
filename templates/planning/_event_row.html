@@ -63,7 +63,7 @@
   <form method="post" class="event-note-form" data-note-version="{{ event.version }}">
     <textarea name="note" rows="1" maxlength="1000"
               aria-label="Note commune pour le {{ event.date|date:'l j F Y' }}"
-              placeholder="Ex. : besoin d’un/une expérimenté(e)">
+              placeholder="Note/information :">
 {{ event.public_note }}</textarea>
     <button type="submit" class="btn note-save" hidden
             aria-label="Enregistrer la note pour le {{ event.date|date:'l j F Y' }}"

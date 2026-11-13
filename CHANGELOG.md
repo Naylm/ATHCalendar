@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.2.7
+
+- L'espace réservé de la note de date affiche « Note/information : » au lieu
+  de l'exemple ; la hauteur fixe d'une ligne est inchangée.
+
 ## 0.2.6
 
 - La note de date garde une hauteur fixe d'une ligne : plus d'agrandissement

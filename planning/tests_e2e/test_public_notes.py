@@ -40,12 +40,10 @@ class PublicNotesE2ETests(unittest.TestCase):
                     cancel = form.locator(".note-cancel")
                     note_text = NOTE_EXAMPLE + "\nDeuxième ligne conservée"
                     # Vide et inactif : champ d'une ligne, boutons masqués,
-                    # exemple en espace réservé jamais prérempli.
+                    # espace réservé neutre, jamais prérempli.
                     expect(ta).to_have_value("")
                     assert ta.evaluate("el => el.defaultValue") == ""
-                    expect(ta).to_have_attribute(
-                        "placeholder", "Ex. : besoin d’un/une expérimenté(e)"
-                    )
+                    expect(ta).to_have_attribute("placeholder", "Note/information :")
                     expect(save).to_be_hidden()
                     expect(save).to_be_disabled()
                     expect(cancel).to_be_hidden()

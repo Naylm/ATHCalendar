@@ -4,7 +4,7 @@ from datetime import date
 from django.db import transaction
 from django.db.models import Prefetch
 
-from .models import Event, Organizer, Period, Registration
+from .models import Event, Period, Registration
 
 
 @dataclass(frozen=True)
@@ -43,26 +43,6 @@ class PeriodTable:
     archived: bool
     planning: tuple[PlanningRow, ...]
     registrations: tuple[RegistrationRow, ...]
-
-
-@dataclass(frozen=True)
-class RecapDate:
-    event_id: str
-    date: date
-    type_label: str
-    cancelled: bool
-    availability: str
-
-
-@dataclass(frozen=True)
-class RecapPerson:
-    organizer_id: str
-    name: str
-    dates: tuple[RecapDate, ...]
-
-    @property
-    def registration_count(self):
-        return len(self.dates)
 
 
 def _availability_label(event, active_count):
@@ -131,67 +111,4 @@ def period_table(period):
             archived=period.is_archived,
             planning=tuple(planning_rows),
             registrations=tuple(registration_rows),
-        )
-
-
-def public_recap(period):
-    """Public recap matches visible active registrations, not attendance."""
-    with transaction.atomic():
-        organizers = {
-            organizer.pk: organizer
-            for organizer in Organizer.objects.only("id", "name", "merged_into_id")
-        }
-        roots = {}
-
-        def root_id(organizer_id):
-            trail = set()
-            current = organizer_id
-            while current not in roots:
-                if current in trail or current not in organizers:
-                    raise ValueError("Historique de fusion des pseudos incohérent.")
-                trail.add(current)
-                target = organizers[current].merged_into_id
-                if target is None:
-                    break
-                current = target
-            root = roots.get(current, current)
-            for item in trail:
-                roots[item] = root
-            return root
-
-        registrations = (
-            Registration.objects.filter(
-                event__period_id=period.pk,
-                event__is_hidden=False,
-                state=Registration.State.ACTIVE,
-            )
-            .select_related("event")
-            .order_by("event__date", "event_id", "created_at", "pk")
-        )
-        grouped = {}
-        for registration in registrations:
-            event = registration.event
-            organizer_id = root_id(registration.organizer_id)
-            dates = grouped.setdefault(organizer_id, {})
-            # Archived aliases can retain two records for the same person/date.
-            dates.setdefault(
-                event.pk,
-                RecapDate(
-                    event_id=str(event.pk),
-                    date=event.date,
-                    type_label=event.type_label or "À définir",
-                    cancelled=event.status == Event.Status.CANCELLED,
-                    availability=event.get_availability_display(),
-                ),
-            )
-        return tuple(
-            RecapPerson(
-                organizer_id=str(organizer_id),
-                name=organizers[organizer_id].name,
-                dates=tuple(dates.values()),
-            )
-            for organizer_id, dates in sorted(
-                grouped.items(),
-                key=lambda item: (organizers[item[0]].name.casefold(), str(item[0])),
-            )
         )

@@ -1,4 +1,0 @@
-<nav class="tabs public-tabs" aria-label="Vues du planning">
-  <a class="tab{% if request.resolver_match.url_name == 'index' %} active{% endif %}" href="/{% if period %}?period={{ period.pk }}{% endif %}"{% if request.resolver_match.url_name == 'index' %} aria-current="page"{% endif %}>Planning</a>
-  <a class="tab{% if request.resolver_match.url_name == 'public_recap' %} active{% endif %}" href="/recapitulatif/{% if period %}?period={{ period.pk }}{% endif %}"{% if request.resolver_match.url_name == 'public_recap' %} aria-current="page"{% endif %}>Par personne</a>
-</nav>

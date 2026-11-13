@@ -2,10 +2,9 @@ import uuid
 from datetime import date
 
 from django.test import TestCase
-from django.utils import timezone
 
 from planning.models import Event, Organizer, Period, Registration
-from planning.reports import period_table, public_recap
+from planning.reports import period_table
 
 
 class ReportDataTests(TestCase):
@@ -42,45 +41,6 @@ class ReportDataTests(TestCase):
             event=event, organizer=organizer, organizer_name=organizer.name, **kwargs
         )
 
-    def test_public_recap_matches_visible_active_registrations(self):
-        people = public_recap(self.period)
-        self.assertEqual([person.name for person in people], ["Alice", "Bob"])
-        self.assertEqual(
-            [[item.date for item in person.dates] for person in people],
-            [
-                [date(2030, 1, 5), date(2030, 1, 6)],
-                [date(2030, 1, 5), date(2030, 1, 13)],
-            ],
-        )
-        self.assertEqual([person.registration_count for person in people], [2, 2])
-        self.assertFalse(people[1].dates[0].cancelled)
-        self.assertTrue(people[1].dates[1].cancelled)
-        self.assertEqual(people[0].dates[1].availability, "Indisponible")
-
-    def test_recap_never_mixes_periods(self):
-        other = Period.objects.create(
-            creation_key=uuid.uuid4(),
-            label="Autre période",
-            start_date=date(2031, 1, 1),
-            end_date=date(2031, 1, 31),
-        )
-        event = Event.objects.create(period=other, date=date(2031, 1, 4))
-        self._registration(event, self.carol)
-        self.assertEqual([person.name for person in public_recap(self.period)], ["Alice", "Bob"])
-        people = public_recap(other)
-        self.assertEqual([person.name for person in people], ["Carol"])
-        self.assertEqual(people[0].dates[0].date, date(2031, 1, 4))
-
-    def test_archived_aliases_are_grouped_without_double_counting_a_date(self):
-        alias = self._organizer("Ancien Alice", merged_into=self.alice, is_active=False)
-        self._registration(self.first, alias)
-        self.period.archived_at = timezone.now()
-        self.period.save(update_fields=["archived_at"])
-        people = public_recap(self.period)
-        self.assertEqual([person.name for person in people], ["Alice", "Bob"])
-        self.assertEqual(people[0].registration_count, 2)
-        self.assertEqual(len(people[0].dates), 2)
-
     def test_bureau_table_keeps_hidden_dates_and_withdrawn_history(self):
         report = period_table(self.period)
         self.assertEqual(
@@ -116,4 +76,3 @@ class ReportDataTests(TestCase):
         self.assertIn("=Ancien nom", report.planning[0].organizer_names)
         row = next(row for row in report.registrations if row.organizer_name == "=Ancien nom")
         self.assertEqual(row.note, "=1+1")
-        self.assertIn("Nouveau nom", [person.name for person in public_recap(self.period)])

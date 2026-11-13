@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.2.1
+
+- Options remontées en haut de la gestion des périodes.
+- Retrait de l'onglet et du récapitulatif public « Par personne ».
+- Exports Bureau et inscriptions conservés.
+
 ## 0.2.0 - 2026-11-13
 
 - Disponibilité des dates pilotée par le Bureau : Ouverte, Indisponible ou

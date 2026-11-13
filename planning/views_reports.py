@@ -6,12 +6,10 @@ from django.shortcuts import render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
-from . import reports, selectors
+from . import reports
 from .errors import ServiceError
-from .models import Period
 from .permissions import bureau_page
 from .services.periods import get_period
-from .services.validators import parse_uuid
 
 
 def _period_or_404(period_id):
@@ -19,29 +17,6 @@ def _period_or_404(period_id):
         return get_period(period_id)
     except ServiceError:
         raise Http404("Période introuvable.") from None
-
-
-@never_cache
-@require_GET
-def recap(request):
-    period_id = request.GET.get("period")
-    if period_id:
-        try:
-            period_id = parse_uuid(period_id, "Période")
-        except ServiceError:
-            raise Http404("Période introuvable.") from None
-        period = _period_or_404(period_id)
-    else:
-        period = selectors.default_period()
-    return render(
-        request,
-        "planning/recap.html",
-        {
-            "period": period,
-            "periods": Period.objects.order_by("start_date", "created_at"),
-            "people": reports.public_recap(period) if period else (),
-        },
-    )
 
 
 def _xlsx_sheet(workbook, name, title, subtitle, headers, rows, widths):

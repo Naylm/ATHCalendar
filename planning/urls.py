@@ -4,7 +4,6 @@ from . import api_public, views_bureau, views_public, views_reports
 
 urlpatterns = [
     path("", views_public.index, name="index"),
-    path("recapitulatif/", views_reports.recap, name="public_recap"),
     path("dates/<uuid:event_id>/", views_public.event_detail, name="event_detail"),
     path(
         "mes-inscriptions/",

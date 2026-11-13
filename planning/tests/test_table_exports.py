@@ -44,16 +44,17 @@ class TableExportTests(TestCase):
         self.bureau = Client()
         self.bureau.force_login(user)
 
-    def test_exports_are_bureau_only_but_recap_is_public(self):
+    def test_exports_are_bureau_only_and_public_recap_is_removed(self):
         root = f"/bureau/exports/periode/{self.period.pk}"
         for path in (root + ".xlsx", root + "/imprimer/"):
             self.assertRedirects(
                 Client().get(path), "/bureau/connexion/", fetch_redirect_response=False
             )
-        response = Client().get(f"/recapitulatif/?period={self.period.pk}")
-        self.assertContains(response, "=Alice")
-        self.assertNotContains(response, "Secret masqué")
-        self.assertEqual(Client().get("/recapitulatif/?period=invalide").status_code, 404)
+        self.assertEqual(Client().get(f"/recapitulatif/?period={self.period.pk}").status_code, 404)
+        self.assertEqual(Client().get("/recapitulatif/").status_code, 404)
+        index = Client().get("/")
+        self.assertNotContains(index, "Par personne")
+        self.assertNotContains(index, "/recapitulatif/")
 
     def test_xlsx_is_a_real_formatted_workbook_without_user_formulas(self):
         response = self.bureau.get(f"/bureau/exports/periode/{self.period.pk}.xlsx")
@@ -90,7 +91,7 @@ class TableExportTests(TestCase):
         self.assertContains(response, "&lt;script&gt;")
         self.assertNotContains(response, "<script>alert(1)</script>")
 
-    def test_empty_period_has_valid_workbook_and_public_empty_state(self):
+    def test_empty_period_has_valid_workbook(self):
         empty = Period.objects.create(
             creation_key=uuid.uuid4(),
             label="Vide",
@@ -100,10 +101,6 @@ class TableExportTests(TestCase):
         response = self.bureau.get(f"/bureau/exports/periode/{empty.pk}.xlsx")
         with ZipFile(BytesIO(response.content)) as archive:
             self.assertIsNone(archive.testzip())
-        self.assertContains(
-            Client().get(f"/recapitulatif/?period={empty.pk}"),
-            "Aucune inscription active",
-        )
 
     def test_color_picker_displays_swatch_and_names_not_hex_text(self):
         game_type = types.create_type(

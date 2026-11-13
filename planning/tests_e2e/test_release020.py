@@ -46,7 +46,7 @@ class Release020Tests(unittest.TestCase):
             )
             yield server
 
-    def test_mobile_states_public_recap_and_color_visibility(self):
+    def test_mobile_states_and_color_visibility(self):
         with self._server() as server, browser_tests()() as pw:
             browser = pw.chromium.launch()
             try:
@@ -68,12 +68,10 @@ class Release020Tests(unittest.TestCase):
                     expect(select).to_have_css("background-color", "rgb(96, 118, 107)")
                     check_no_horizontal_overflow(page)
                     page.screenshot(path=str(SCREENSHOT_DIR / f"release020-planning-{width}.png"))
-                    page.get_by_role("link", name="Par personne", exact=True).click()
-                    expect(page.locator(".recap-person")).to_have_count(1)
-                    expect(page.locator(".recap-person")).to_contain_text("Alice")
-                    expect(page.locator(".recap-person")).to_contain_text("Complète")
+                    expect(page.get_by_role("link", name="Par personne", exact=True)).to_have_count(
+                        0
+                    )
                     check_no_horizontal_overflow(page)
-                    page.screenshot(path=str(SCREENSHOT_DIR / f"release020-recap-{width}.png"))
                     tracked.assert_clean()
                     context.close()
             finally:
@@ -128,7 +126,16 @@ class Release020Tests(unittest.TestCase):
                 )
                 page.goto(server.url + "/bureau/")
                 page.get_by_role("link", name="Gérer", exact=True).first.click()
-                page.get_by_text("Options", exact=True).click()
+                options_summary = page.get_by_text("Options", exact=True)
+                list_pos = page.evaluate(
+                    "document.querySelector('details.card')"
+                    ".compareDocumentPosition(document.querySelector('.event-list'))"
+                )
+                assert list_pos & 4, "Options doit précéder la liste des dates"
+                expect(options_summary).to_be_visible()
+                box = options_summary.bounding_box()
+                assert box["y"] < 844, box
+                options_summary.click()
                 with page.expect_download() as download:
                     page.get_by_role("link", name="Tableau Excel", exact=True).click()
                 assert download.value.suggested_filename.endswith(".xlsx")

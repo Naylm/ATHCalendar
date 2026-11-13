@@ -127,9 +127,9 @@ du pied de page. Versions publiées par tags Git annotés `vX.Y.Z` et journal
   Bureau. Les deux états fermés interdisent les mutations publiques mais
   conservent les inscriptions. Ne pas confondre ce champ avec l'ancien
   booléen `registrations_open`, volontairement ignoré par le parcours public.
-- Le récapitulatif public présente seulement les inscriptions actives sur
-  dates non masquées d'une période, archives incluses ; les annulations sont
-  signalées et les alias fusionnés ne doublent pas une personne sur une date.
+- Depuis la version 0.2.1, l'onglet et la route du récapitulatif public
+  « Par personne » sont retirés. Les inscriptions et les exports Bureau
+  restent disponibles ; les Options se trouvent en haut de la gestion d'une période.
 - Les données des rapports sont centralisées dans `planning/reports.py`.
   Les exports Excel/imprimables du Bureau conservent toutes les dates et
   l'historique ; les données utilisateur Excel restent du texte, jamais des

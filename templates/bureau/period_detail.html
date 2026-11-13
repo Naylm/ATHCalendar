@@ -2,44 +2,6 @@
 {% block bureau_content %}
 <p class="muted period-back"><a class="muted" href="/bureau/">← Périodes</a></p>
 <h1>{{ period.label }} {% if period.is_archived %}<span class="tag tag-muted">Archivée</span>{% endif %}</h1>
-<form method="get" data-auto-filter class="inline-actions">
-  {{ filter_form.staffing.errors }}
-  <label for="id_staffing">Afficher</label>
-  {{ filter_form.staffing }}
-  <button type="submit" class="btn" data-filter-submit>Filtrer</button>
-</form>
-{% if selection_form %}{{ selection_form.non_field_errors }}{{ selection_form.event_ids.errors }}{{ selection_form.selection_action.errors }}{{ selection_form.expected_revision.errors }}{{ selection_form.staffing.errors }}{{ selection_form.confirm.errors }}{% endif %}
-<p class="muted visibility-legend">Cochée : visible sur le planning.</p>
-<ul class="event-list">
-  {% for event in events %}
-  <li class="card event-card bureau-event {% if event.is_hidden %}is-hidden{% endif %}{% if event.payload.status == 'cancelled' %} is-cancelled{% endif %}">
-    <form method="post" class="visibility-form">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="visibility">
-      <input type="hidden" name="event_id" value="{{ event.pk }}">
-      <input type="hidden" name="staffing" value="{{ staffing }}">
-      <input type="hidden" name="expected_revision" value="{{ expected_revision }}">
-      <input type="hidden" name="expected_version" value="{{ event.version }}">
-      <div class="event-head">
-        <label class="visibility-toggle"><input type="checkbox" name="visible" value="on" aria-label="Afficher le {{ event.date|date:'l j F Y' }} sur le planning public"{% if not event.is_hidden %} checked{% endif %}{% if period.is_archived %} disabled{% endif %}> <span class="event-date">{{ event.date|date:'l j F Y' }}</span></label>
-        <span class="tag">{{ event.payload.type_label }}</span>
-        {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
-        <span class="tag tag-muted visibility-status"{% if not event.is_hidden %} hidden{% endif %}>Masquée</span>
-      </div>
-      <p class="muted visibility-msg" role="status" hidden></p>
-      <noscript><button type="submit" class="btn">Enregistrer</button></noscript>
-    </form>
-    <p class="muted">{% include "planning/_staffing.html" %}{% if event.capacity %} · cap {{ event.capacity }}{% endif %}</p>
-    {% if event.payload.organizers %}
-    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span></span>{% endfor %}</p>
-    {% endif %}
-    <a href="/bureau/dates/{{ event.pk }}/">Modifier</a>
-    {% include "bureau/_availability.html" with return_to_period=True %}
-  </li>
-  {% empty %}
-  <li class="card muted">Aucune date correspondante.</li>
-  {% endfor %}
-</ul>
 <details class="card">
   <summary>Options</summary>
   <p class="inline-actions">
@@ -95,4 +57,43 @@
   <p class="muted">Période archivée — lecture seule. Seule la réouverture permet des corrections.</p>
   {% endif %}
 </details>
+<form method="get" data-auto-filter class="inline-actions">
+  {{ filter_form.staffing.errors }}
+  <label for="id_staffing">Afficher</label>
+  {{ filter_form.staffing }}
+  <button type="submit" class="btn" data-filter-submit>Filtrer</button>
+</form>
+{% if selection_form %}{{ selection_form.non_field_errors }}{{ selection_form.event_ids.errors }}{{ selection_form.selection_action.errors }}{{ selection_form.expected_revision.errors }}{{ selection_form.staffing.errors }}{{ selection_form.confirm.errors }}{% endif %}
+<p class="muted visibility-legend">Cochée : visible sur le planning.</p>
+<ul class="event-list">
+  {% for event in events %}
+  <li class="card event-card bureau-event {% if event.is_hidden %}is-hidden{% endif %}{% if event.payload.status == 'cancelled' %} is-cancelled{% endif %}">
+    <form method="post" class="visibility-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="visibility">
+      <input type="hidden" name="event_id" value="{{ event.pk }}">
+      <input type="hidden" name="staffing" value="{{ staffing }}">
+      <input type="hidden" name="expected_revision" value="{{ expected_revision }}">
+      <input type="hidden" name="expected_version" value="{{ event.version }}">
+      <div class="event-head">
+        <label class="visibility-toggle"><input type="checkbox" name="visible" value="on" aria-label="Afficher le {{ event.date|date:'l j F Y' }} sur le planning public"{% if not event.is_hidden %} checked{% endif %}{% if period.is_archived %} disabled{% endif %}> <span class="event-date">{{ event.date|date:'l j F Y' }}</span></label>
+        <span class="tag">{{ event.payload.type_label }}</span>
+        {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
+        <span class="tag tag-muted visibility-status"{% if not event.is_hidden %} hidden{% endif %}>Masquée</span>
+      </div>
+      <p class="muted visibility-msg" role="status" hidden></p>
+      <noscript><button type="submit" class="btn">Enregistrer</button></noscript>
+    </form>
+    <p class="muted">{% include "planning/_staffing.html" %}{% if event.capacity %} · cap {{ event.capacity }}{% endif %}</p>
+    {% if event.payload.organizers %}
+    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span></span>{% endfor %}</p>
+    {% endif %}
+    <a href="/bureau/dates/{{ event.pk }}/">Modifier</a>
+    {% include "bureau/_availability.html" with return_to_period=True %}
+  </li>
+  {% empty %}
+  <li class="card muted">Aucune date correspondante.</li>
+  {% endfor %}
+</ul>
+
 {% endblock %}

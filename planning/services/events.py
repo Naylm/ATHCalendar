@@ -25,6 +25,7 @@ from .validators import (
     require_bool,
     require_date,
     require_int,
+    require_str,
 )
 
 UNSET = object()
@@ -212,6 +213,18 @@ def update_event(
         return event
 
 
+def _require_public_event_editable(event):
+    _require_not_archived(event.period)
+    if event.is_hidden:
+        raise ClosedConflict("Cette date n'est plus visible.")
+    if event.status != Event.Status.SCHEDULED:
+        raise ClosedConflict("Cette date a été annulée par le Bureau.")
+    if event.date < paris_today():
+        raise ClosedConflict("Cette date est passée ; modification impossible.")
+    if event.availability != Event.Availability.AVAILABLE:
+        raise ClosedConflict("Cette date est verrouillée par le Bureau.")
+
+
 def set_public_game_type(event_id, *, actor: Actor, game_type_id, expected_version):
     expected_version = require_int(
         expected_version, "Version", minimum=1, field="expected_event_version"
@@ -220,15 +233,7 @@ def set_public_game_type(event_id, *, actor: Actor, game_type_id, expected_versi
     with write_transaction():
         event = Event.objects.select_related("period").get(pk=event.pk)
         period = event.period
-        _require_not_archived(period)
-        if event.is_hidden:
-            raise ClosedConflict("Cette date n'est plus visible.")
-        if event.status != Event.Status.SCHEDULED:
-            raise ClosedConflict("Cette date a été annulée par le Bureau.")
-        if event.date < paris_today():
-            raise ClosedConflict("Cette date est passée ; modification impossible.")
-        if event.availability != Event.Availability.AVAILABLE:
-            raise ClosedConflict("Cette date est verrouillée par le Bureau.")
+        _require_public_event_editable(event)
         _check_version(event, expected_version)
         game_type = _resolve_type(game_type_id)
         requested = game_type.pk if game_type is not None else None
@@ -243,6 +248,39 @@ def set_public_game_type(event_id, *, actor: Actor, game_type_id, expected_versi
         audit.log(
             actor=actor,
             action="event.type_public",
+            target=event,
+            before=before,
+            after=audit.snapshot(event),
+        )
+        return event
+
+
+def set_public_note(event_id, *, actor: Actor, public_note, expected_version):
+    expected_version = require_int(
+        expected_version, "Version", minimum=1, field="expected_event_version"
+    )
+    public_note = require_str(
+        public_note,
+        "La note",
+        min_len=0,
+        max_len=1000,
+        field="public_note",
+        strip=False,
+    )
+    with write_transaction():
+        event = get_event(event_id)
+        _require_public_event_editable(event)
+        _check_version(event, expected_version)
+        if public_note == event.public_note:
+            return event
+        before = audit.snapshot(event)
+        event.public_note = public_note
+        event.version += 1
+        event.save(update_fields=["public_note", "version", "updated_at"])
+        bump_revision(event.period)
+        audit.log(
+            actor=actor,
+            action="event.note_public",
             target=event,
             before=before,
             after=audit.snapshot(event),

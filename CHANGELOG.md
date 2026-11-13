@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.2.4
+
+- Note commune par date, éditable directement sur le planning public
+  (1000 caractères, versionnée) : « besoin d'un/une expérimenté(e) », etc.
+- Mêmes verrous que les autres actions publiques : date passée, annulée,
+  archivée, masquée ou fermée par le Bureau reste en lecture seule.
+- Le brouillon local est protégé en cas de changement concurrent : la
+  synchronisation conserve la saisie, « Annuler » recharge la note enregistrée.
+
 ## 0.2.3
 
 - Le code d'un type de partie accepte lettres accentuées, chiffres, points,

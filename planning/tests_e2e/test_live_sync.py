@@ -294,7 +294,7 @@ class LiveSyncTests(unittest.TestCase):
             page.wait_for_selector(".name-registration-form", timeout=8000)
             row = page.locator(f"#date-{event_id}")
             input_el = row.locator("input[name=name]")
-            button = row.locator("button[type=submit]")
+            button = row.locator(".name-registration-form button[type=submit]")
             self._submit(page, event_id, "Bob")
             expect(row.locator(".form-msg")).to_be_visible(timeout=8000)
             assert input_el.is_enabled()
@@ -458,7 +458,7 @@ class LiveSyncTests(unittest.TestCase):
             )
             row = page.locator(f"#date-{event_id}")
             expect(row.locator(".form-msg")).to_contain_text("Date retirée", timeout=10000)
-            assert row.locator("button[type=submit]").is_disabled()
+            assert row.locator(".name-registration-form button[type=submit]").is_disabled()
             assert input_el.input_value() == "Gardé"
             input_el.fill("")
             input_el.blur()

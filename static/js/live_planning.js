@@ -135,6 +135,7 @@
 
   function rowUnsafe(li) {
     if (li.dataset.writing === "1") return true;
+    if (li.querySelector(".event-note-form[data-dirty='1']")) return true;
     if (li.contains(document.activeElement)) return true;
     var input = li.querySelector(".name-registration-form input[name=name]");
     return !!(input && input.value.trim());
@@ -231,6 +232,9 @@
         msg.setAttribute("role", "status");
         msg.textContent = "Date retirée";
       }
+      if (window.ath.notes && window.ath.notes.lock) {
+        window.ath.notes.lock(li, null);
+      }
       return;
     }
     li.remove();
@@ -306,17 +310,24 @@
     var dmsg = dst.querySelector(":scope > .type-msg");
     var smsg = src.querySelector(":scope > .type-msg");
     if (!dmsg && smsg) {
-      dst.insertBefore(smsg.cloneNode(true), dst.querySelector(":scope > .event-note"));
+      dst.insertBefore(
+        smsg.cloneNode(true),
+        dst.querySelector(":scope > .event-note-form, :scope > .event-note")
+      );
     }
 
-    var dnote = dst.querySelector(":scope > .event-note");
-    var snote = src.querySelector(":scope > .event-note");
-    if (dnote && snote) {
-      if (dnote.innerHTML !== snote.innerHTML) dnote.innerHTML = snote.innerHTML;
-    } else if (!dnote && snote) {
-      dst.appendChild(snote.cloneNode(true));
-    } else if (dnote && !snote) {
-      dnote.remove();
+    if (window.ath.notes && window.ath.notes.patch) {
+      window.ath.notes.patch(dst, src);
+    } else {
+      var dnote = dst.querySelector(":scope > .event-note");
+      var snote = src.querySelector(":scope > .event-note");
+      if (dnote && snote) {
+        if (dnote.innerHTML !== snote.innerHTML) dnote.innerHTML = snote.innerHTML;
+      } else if (!dnote && snote) {
+        dst.appendChild(snote.cloneNode(true));
+      } else if (dnote && !snote) {
+        dnote.remove();
+      }
     }
   }
 
@@ -370,7 +381,9 @@
   }
 
   function insertAction(dst, node, src) {
-    var before = dst.querySelector(":scope > .type-msg, :scope > .event-note");
+    var before = dst.querySelector(
+      ":scope > .type-msg, :scope > .event-note-form, :scope > .event-note"
+    );
     if (before) dst.insertBefore(node, before);
     else dst.appendChild(node);
     if (node.classList.contains("name-registration-form")) {
@@ -432,6 +445,7 @@
       row &&
       row.dataset.removed === "1" &&
       !input.value.trim() &&
+      !row.querySelector(".event-note-form[data-dirty='1']") &&
       !row.contains(document.activeElement)
     ) {
       row.remove();

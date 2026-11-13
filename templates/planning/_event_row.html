@@ -59,5 +59,19 @@
   <p class="type-msg" hidden></p>
   {% endif %}
   {% endwith %}
-  {% if event.public_note %}<p class="event-note">{{ event.public_note }}</p>{% endif %}
+  {% if event.payload.interactive %}
+  <form method="post" class="event-note-form" data-note-version="{{ event.version }}">
+    <textarea name="note" rows="1" maxlength="1000"
+              aria-label="Note commune pour le {{ event.date|date:'l j F Y' }}"
+              placeholder="Note : besoin d’un/une expérimenté(e)">
+{{ event.public_note }}</textarea>
+    <button type="submit" class="btn note-save"
+            aria-label="Enregistrer la note pour le {{ event.date|date:'l j F Y' }}"
+            disabled>OK</button>
+    <button type="button" class="btn note-cancel" hidden>Annuler</button>
+    <p class="note-msg" hidden role="status"></p>
+  </form>
+  {% elif event.public_note %}
+  <p class="event-note">{{ event.public_note }}</p>
+  {% endif %}
 </li>

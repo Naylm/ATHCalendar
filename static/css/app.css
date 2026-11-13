@@ -293,6 +293,34 @@ body[data-page="planning"] .event-date {
   .remove-registration { min-width: 44px; min-height: 44px; }
 }
 .event-note { grid-column: 1 / -1; margin: 4px 0 0; color: var(--muted); white-space: pre-wrap; }
+.event-note-form {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+}
+.event-note-form textarea {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 1rem;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  resize: vertical;
+}
+.event-note-form .note-save,
+.event-note-form .note-cancel {
+  min-height: 44px;
+  padding: 4px 10px;
+}
+.event-note-form .note-save:disabled { opacity: 0.5; }
+.event-note-form .note-msg { flex-basis: 100%; margin: 0; font-size: 0.9rem; }
+.event-note-form .note-msg[role="alert"] { color: var(--danger-text); }
 .event-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .event-card.is-cancelled { opacity: 0.7; border-style: dashed; }
 .name-registration-form { grid-column: 3; grid-row: 1 / span 2; display: flex; gap: 6px; align-items: center; }

@@ -259,6 +259,51 @@ def event_type(request, event_id):
     return JsonResponse({"event": selectors.event_payload(event)})
 
 
+@service_errors
+@require_http_methods(["PUT"])
+@limit_rate(
+    category="public_write",
+    limit=django_settings.PUBLIC_WRITE_LIMIT,
+    window_seconds=django_settings.PUBLIC_WRITE_WINDOW,
+)
+def event_note(request, event_id):
+    body = parse_json_body(request)
+    _reject_privileged(body)
+    for key in body:
+        if key not in ("public_note", "expected_event_version"):
+            raise ValidationFailed(
+                "Ce champ ne peut pas être défini par le client.",
+                fields={key: "Champ non autorisé."},
+            )
+    if "public_note" not in body or "expected_event_version" not in body:
+        raise ValidationFailed(
+            "La note et la version de la date affichée sont requises.",
+            fields={
+                "public_note": "Champ manquant.",
+                "expected_event_version": "Champ manquant.",
+            },
+        )
+    if not isinstance(body["public_note"], str):
+        raise ValidationFailed("Note invalide.", fields={"public_note": "Texte attendu."})
+    expected_event_version = _strict_version(
+        body["expected_event_version"], "expected_event_version", minimum=1
+    )
+    if request.user.is_authenticated and is_bureau(request.user):
+        actor = actor_for_request(request)
+    else:
+        actor = replace(
+            Actor.declared("Visiteur"),
+            request_id=getattr(request, "request_id", "") or "",
+        )
+    event = event_services.set_public_note(
+        event_id,
+        actor=actor,
+        public_note=body["public_note"],
+        expected_version=expected_event_version,
+    )
+    return JsonResponse({"event": selectors.event_payload(event)})
+
+
 def _strict_versions_map(versions, event_ids):
     if not isinstance(versions, dict):
         raise ValidationFailed(

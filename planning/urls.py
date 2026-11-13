@@ -50,6 +50,11 @@ urlpatterns = [
         name="api_event_type",
     ),
     path(
+        "api/events/<uuid:event_id>/note/",
+        api_public.event_note,
+        name="api_event_note",
+    ),
+    path(
         "api/registrations/batch/",
         api_public.registrations_batch,
         name="api_registrations_batch",

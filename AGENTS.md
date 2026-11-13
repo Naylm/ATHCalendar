@@ -92,8 +92,8 @@ Compose est fixe.
 - Acteurs : `planning.services.actors.Actor` — `bureau()`, `system()`,
   `public(organizer)`. Une période archivée refuse toute écriture, Bureau
   compris ; seul `periods.reopen` la déverrouille.
-- `Event.version` couvre date/type/état/fermeture ; les inscriptions d'autres
-  personnes ne la modifient pas. `Registration.version` couvre état/note.
+- `Event.version` couvre date/type/état/fermeture/note commune ; les inscriptions
+  d'autres personnes ne la modifient pas. `Registration.version` couvre état/note.
   `Period.revision` monte à chaque changement visible.
 - Les tests de concurrence utilisent un fichier SQLite réel et des connexions
   par thread (`planning/tests/test_concurrency.py`).
@@ -139,6 +139,10 @@ du pied de page. Versions publiées par tags Git annotés `vX.Y.Z` et journal
   `services.types.validate_code` (Unicode, points/tirets, NFC) ; le Bureau
   peut supprimer un type uniquement s'il n'est référencé par aucune date,
   sinon `Désactiver` reste la voie sûre.
+- Depuis la version 0.2.4, `Event.public_note` est éditable publiquement par
+  date (PUT `/api/events/<id>/note/`, `events.set_public_note`, mêmes verrous
+  que le type public, `expected_event_version` requis) ; `day_notes.js`
+  préserve le brouillon local face à la synchronisation.
 - Les données des rapports sont centralisées dans `planning/reports.py`.
   Les exports Excel/imprimables du Bureau conservent toutes les dates et
   l'historique ; les données utilisateur Excel restent du texte, jamais des

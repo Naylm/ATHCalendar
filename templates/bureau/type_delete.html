@@ -1,0 +1,33 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Supprimer définitivement le type</h1>
+<div class="card type-delete">
+  <p><strong>{{ preview.game_type.name }}</strong> {% if not preview.game_type.is_active %}<span class="tag tag-muted">Désactivé</span>{% endif %}</p>
+  <p><code>{{ preview.game_type.code }}</code></p>
+  {% if preview.event_count > 0 %}
+  <p>Ce type est utilisé sur {{ preview.event_count }} date(s) et ne peut pas être
+    supprimé. Désactivez-le pour le retirer des nouveaux choix sans modifier
+    l'historique des dates et inscriptions.</p>
+  <p><a class="btn" href="/bureau/types/">Retour aux types</a></p>
+  {% else %}
+  <p class="muted">Ce type n'est utilisé par aucune date. La suppression est définitive
+    et irréversible ; le journal du Bureau conserve la trace de cette action.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.confirmation_code.errors }}
+    <p>
+      <label for="id_confirmation_code">{{ form.confirmation_code.label }}</label>
+      {{ form.confirmation_code }}
+    </p>
+    <p class="muted">Recopiez exactement : {{ preview.game_type.code }}</p>
+    {{ form.confirm_delete.errors }}
+    <p><label>{{ form.confirm_delete }} {{ form.confirm_delete.label }}</label></p>
+    <p class="inline-actions">
+      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+      <a class="btn" href="/bureau/types/">Retour aux types</a>
+    </p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

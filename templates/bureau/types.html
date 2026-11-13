@@ -1,7 +1,7 @@
 {% extends "bureau/base_bureau.html" %}
 {% block bureau_content %}
 <h1>Types de parties</h1>
-<details class="card">
+<details class="card" {% if form.is_bound %}open{% endif %}>
   <summary>Ajouter un type</summary>
   <form method="post">
     {% csrf_token %}
@@ -11,7 +11,8 @@
         {{ field.errors }}
         {% include "bureau/_color_picker.html" with selected_color=field.value color_prefix="new" %}
       {% else %}
-        <p>{{ field.label_tag }} {{ field }} {{ field.errors }}</p>
+        <p>{{ field.label_tag }} {{ field }} {{ field.errors }}
+          {% if field.help_text %}<br><small class="muted">{{ field.help_text }}</small>{% endif %}</p>
       {% endif %}
     {% endfor %}
     <button type="submit" name="action" value="create" class="btn">Ajouter</button>
@@ -39,6 +40,9 @@
       <button type="submit" name="action" value="activate" class="btn">Réactiver</button>
       {% endif %}
     </form>
+    <p class="inline-actions">
+      <a class="btn btn-danger" href="/bureau/types/{{ t.pk }}/supprimer/">Supprimer</a>
+    </p>
   </li>
   {% endfor %}
 </ul>

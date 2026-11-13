@@ -1,5 +1,15 @@
 # Journal des versions
 
+## 0.2.3
+
+- Le code d'un type de partie accepte lettres accentuées, chiffres, points,
+  tirets et tirets bas (ex. `event.spé`) ; la création affiche désormais les
+  erreurs en clair dans le formulaire conservé.
+- Suppression définitive des types de parties inutilisés par le Bureau,
+  avec recopie du code et confirmation. Tout type référencé par une date —
+  passée, masquée, annulée ou archivée — reste protégé ; Désactiver permet
+  de le retirer des nouveaux choix sans toucher à l'historique.
+
 ## 0.2.2
 
 - Suppression définitive d'une période par le Bureau, avec page de confirmation :

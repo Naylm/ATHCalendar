@@ -721,14 +721,27 @@ def organizers_list(request):
 def types_list(request):
     if request.method == "POST":
         action = request.POST.get("action")
-        try:
-            if action == "create":
-                form = forms.GameTypeForm(request.POST)
-                if form.is_valid():
+        if action == "create":
+            form = forms.GameTypeForm(request.POST)
+            if form.is_valid():
+                try:
                     type_services.create_type(actor=_bureau_actor(request), **form.cleaned_data)
+                except ServiceError as exc:
+                    known = next((key for key in exc.fields if key in form.fields), None)
+                    form.add_error(known, exc.message)
                 else:
-                    messages.error(request, "Formulaire de type invalide.")
-            elif action == "edit":
+                    return redirect("/bureau/types/")
+            return render(
+                request,
+                "bureau/types.html",
+                {
+                    "types": GameType.objects.order_by("name"),
+                    "form": form,
+                    "palette": type_services.COLOR_PALETTE,
+                },
+            )
+        try:
+            if action == "edit":
                 form = forms.GameTypeEditForm(request.POST)
                 if form.is_valid():
                     type_services.update_type(
@@ -758,6 +771,40 @@ def types_list(request):
             "palette": type_services.COLOR_PALETTE,
         },
     )
+
+
+@bureau_page
+@never_cache
+@require_http_methods(["GET", "POST"])
+def type_delete(request, type_id):
+    try:
+        preview = type_services.deletion_preview(type_id, actor=_bureau_actor(request))
+    except ServiceError as exc:
+        _flash_error(request, exc)
+        return redirect("/bureau/types/")
+    context = {"preview": preview, "form": None}
+    if preview.event_count > 0:
+        return render(request, "bureau/type_delete.html", context)
+    delete_url = f"/bureau/types/{preview.game_type.pk}/supprimer/"
+    if request.method == "GET":
+        context["form"] = forms.TypeDeleteForm()
+        return render(request, "bureau/type_delete.html", context)
+    form = forms.TypeDeleteForm(request.POST)
+    if form.is_valid():
+        try:
+            type_services.delete_type(
+                type_id,
+                actor=_bureau_actor(request),
+                confirmation_code=form.cleaned_data["confirmation_code"],
+                confirm_delete=form.cleaned_data["confirm_delete"],
+            )
+        except ServiceError as exc:
+            _flash_error(request, exc)
+            return redirect(delete_url)
+        messages.success(request, f"Type « {preview.game_type.name} » supprimé définitivement.")
+        return redirect("/bureau/types/")
+    context["form"] = form
+    return render(request, "bureau/type_delete.html", context)
 
 
 @bureau_page

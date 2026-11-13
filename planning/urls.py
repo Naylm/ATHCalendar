@@ -99,6 +99,11 @@ urlpatterns = [
     ),
     path("bureau/pseudos/", views_bureau.organizers_list, name="bureau_organizers"),
     path("bureau/types/", views_bureau.types_list, name="bureau_types"),
+    path(
+        "bureau/types/<uuid:type_id>/supprimer/",
+        views_bureau.type_delete,
+        name="bureau_type_delete",
+    ),
     path("bureau/journal/", views_bureau.journal, name="bureau_journal"),
     path(
         "bureau/exports/periode/<uuid:period_id>.csv",

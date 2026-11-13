@@ -135,6 +135,10 @@ du pied de page. Versions publiées par tags Git annotés `vX.Y.Z` et journal
   exacte du libellé, case de confirmation, version et révision attendues ;
   les périodes archivées doivent être rouvertes d'abord. La cascade retire
   dates et inscriptions ; pseudos, types, autres périodes et journal restent.
+- Depuis la version 0.2.3, `GameType.code` est un `CharField` validé par
+  `services.types.validate_code` (Unicode, points/tirets, NFC) ; le Bureau
+  peut supprimer un type uniquement s'il n'est référencé par aucune date,
+  sinon `Désactiver` reste la voie sûre.
 - Les données des rapports sont centralisées dans `planning/reports.py`.
   Les exports Excel/imprimables du Bureau conservent toutes les dates et
   l'historique ; les données utilisateur Excel restent du texte, jamais des

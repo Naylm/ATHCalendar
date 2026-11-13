@@ -896,3 +896,4 @@ body[data-page="planning"] .event-card.weekend-start {
     min-width: 0;
   }
 }
+.type-delete { overflow-wrap: anywhere; }

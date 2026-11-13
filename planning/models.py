@@ -44,7 +44,7 @@ class Period(models.Model):
 
 class GameType(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    code = models.SlugField(max_length=40, unique=True)
+    code = models.CharField(max_length=40, unique=True)
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
     color = models.CharField(max_length=7, default="#6b7c4a")

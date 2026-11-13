@@ -6,9 +6,10 @@ from django import forms
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 
+from .errors import ValidationFailed
 from .models import Event, GameType
 from .selectors import BUREAU_MANAGEMENT_FILTERS, BUREAU_STAFFING_FILTERS
-from .services.types import ALLOWED_COLORS, COLOR_PALETTE
+from .services.types import ALLOWED_COLORS, COLOR_PALETTE, validate_code
 
 DATE_INPUT = "%Y-%m-%d"
 
@@ -118,11 +119,21 @@ COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 class GameTypeForm(forms.Form):
     name = forms.CharField(label="Nom", max_length=120)
-    code = forms.SlugField(label="Code", max_length=40)
+    code = forms.CharField(
+        label="Code",
+        max_length=40,
+        help_text="Lettres accentuées, chiffres, points, tirets et tirets bas ; ex. event.spé",
+    )
     description = forms.CharField(
         label="Description", required=False, widget=forms.Textarea(attrs={"rows": 3})
     )
     color = forms.ChoiceField(label="Couleur", choices=COLOR_CHOICES, initial=ALLOWED_COLORS[0])
+
+    def clean_code(self):
+        try:
+            return validate_code(self.cleaned_data["code"])
+        except ValidationFailed as exc:
+            raise DjangoValidationError(exc.message) from exc
 
     def clean_color(self):
         value = self.cleaned_data["color"].lower()
@@ -147,6 +158,19 @@ class GameTypeEditForm(forms.Form):
                 "Couleur non autorisée ; choisissez dans la palette proposée."
             )
         return value
+
+
+class TypeDeleteForm(forms.Form):
+    confirmation_code = forms.CharField(
+        label="Code du type",
+        max_length=40,
+        strip=False,
+        widget=forms.TextInput(attrs={"autocomplete": "off"}),
+    )
+    confirm_delete = forms.BooleanField(
+        required=True,
+        label="Je comprends que la suppression est définitive et irréversible.",
+    )
 
 
 class PasswordChangeBureauForm(forms.Form):

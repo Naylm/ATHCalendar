@@ -1,3 +1,7 @@
+import re
+import unicodedata
+from dataclasses import dataclass
+
 from planning.db import write_transaction
 from planning.errors import Conflict, NotFound, ValidationFailed
 from planning.models import Event, GameType
@@ -5,7 +9,7 @@ from planning.models import Event, GameType
 from . import audit
 from .actors import Actor
 from .periods import _require_bureau, bump_revision
-from .validators import optional_str, parse_uuid, require_str
+from .validators import optional_str, parse_uuid, require_bool, require_str
 
 ALLOWED_COLORS = (
     "#6b7c4a",
@@ -43,18 +47,29 @@ def _validate_name(name):
     return require_str(name, "Le nom du type", min_len=1, max_len=120, field="name")
 
 
-def _validate_code(code):
-    return require_str(code, "Le code du type", min_len=1, max_len=40, field="code")
+def validate_code(code):
+    code = unicodedata.normalize(
+        "NFC", require_str(code, "Le code du type", min_len=1, max_len=40, field="code")
+    )
+    if re.fullmatch(r"[\w.-]+", code) is None:
+        raise ValidationFailed(
+            "Le code accepte les lettres accentuées, chiffres, points, tirets et tirets bas.",
+            fields={"code": "Caractères non autorisés."},
+        )
+    return code
 
 
 def create_type(*, actor: Actor, code, name, description=None, color):
     _require_bureau(actor)
-    code = _validate_code(code)
+    code = validate_code(code)
     name = _validate_name(name)
     description = optional_str(description, "La description", max_len=1000, field="description")
     color = _validate_color(color)
     with write_transaction():
-        if GameType.objects.filter(code__iexact=code).exists():
+        if any(
+            unicodedata.normalize("NFC", existing).casefold() == code.casefold()
+            for existing in GameType.objects.values_list("code", flat=True)
+        ):
             raise Conflict(
                 "Un type de partie possède déjà ce code.",
                 fields={"code": code},
@@ -72,6 +87,60 @@ def create_type(*, actor: Actor, code, name, description=None, color):
             after=audit.snapshot(game_type),
         )
         return game_type
+
+
+@dataclass(frozen=True)
+class TypeDeletionPreview:
+    game_type: GameType
+    event_count: int
+
+
+def deletion_preview(type_id, *, actor: Actor):
+    _require_bureau(actor)
+    with write_transaction():
+        game_type = get_type(type_id)
+        return TypeDeletionPreview(
+            game_type=game_type,
+            event_count=Event.objects.filter(game_type_id=game_type.pk).count(),
+        )
+
+
+def delete_type(type_id, *, actor: Actor, confirmation_code, confirm_delete):
+    _require_bureau(actor)
+    confirmation_code = require_str(
+        confirmation_code,
+        "Le code de confirmation",
+        min_len=1,
+        max_len=40,
+        field="confirmation_code",
+        strip=False,
+    )
+    if not require_bool(confirm_delete, "Confirmation", field="confirm_delete"):
+        raise ValidationFailed(
+            "Confirmez explicitement la suppression du type.",
+            fields={"confirm_delete": "Confirmation obligatoire."},
+        )
+    with write_transaction():
+        game_type = get_type(type_id)
+        if confirmation_code != game_type.code:
+            raise ValidationFailed(
+                "Recopiez exactement le code du type pour confirmer sa suppression.",
+                fields={"confirmation_code": "Le code ne correspond pas."},
+            )
+        # Recheck inside the write transaction: a date may have started using it.
+        if Event.objects.filter(game_type_id=game_type.pk).exists():
+            raise Conflict(
+                "Ce type est utilisé sur des dates et ne peut pas être supprimé. "
+                "Désactivez-le pour le retirer des nouveaux choix sans modifier l'historique."
+            )
+        audit.log(
+            actor=actor,
+            action="gametype.delete",
+            target=game_type,
+            before=audit.snapshot(game_type),
+            after=None,
+        )
+        game_type.delete()
 
 
 def update_type(type_id, *, actor: Actor, name=None, description=None, color=None):

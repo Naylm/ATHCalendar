@@ -308,6 +308,7 @@ body[data-page="planning"] .event-date {
   box-sizing: border-box;
   height: 28px;
   min-height: 28px;
+  max-height: 28px;
   line-height: 1.25;
   font-size: 1rem;
   padding: 2px 4px;
@@ -316,23 +317,21 @@ body[data-page="planning"] .event-date {
   border-radius: 0;
   background: transparent;
   color: inherit;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
 }
 .event-note-form textarea:focus {
   border-bottom-color: var(--accent-text);
   outline: none;
 }
-.event-note-form textarea:not(:placeholder-shown) {
-  min-height: 44px;
-}
-.event-note-form textarea:focus,
-.event-note-form[data-dirty="1"] textarea {
-  min-height: 64px;
-}
 .event-note-form .note-save,
 .event-note-form .note-cancel {
-  min-height: 44px;
-  padding: 4px 10px;
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  padding: 2px 8px;
 }
 .event-note-form .note-save:disabled { opacity: 0.5; }
 .event-note-form .note-msg { flex-basis: 100%; margin: 0; font-size: 0.9rem; }

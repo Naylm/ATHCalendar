@@ -38,6 +38,7 @@ class PublicNotesE2ETests(unittest.TestCase):
                     ta = form.locator("textarea")
                     save = form.locator(".note-save")
                     cancel = form.locator(".note-cancel")
+                    note_text = NOTE_EXAMPLE + "\nDeuxième ligne conservée"
                     # Vide et inactif : champ d'une ligne, boutons masqués,
                     # exemple en espace réservé jamais prérempli.
                     expect(ta).to_have_value("")
@@ -49,13 +50,25 @@ class PublicNotesE2ETests(unittest.TestCase):
                     expect(save).to_be_disabled()
                     expect(cancel).to_be_hidden()
                     page.locator("h1").click()  # blur avant mesure
-                    assert ta.bounding_box()["height"] <= 30
+                    idle_height = ta.bounding_box()["height"]
+                    assert idle_height <= 30, idle_height
                     check_no_horizontal_overflow(page)
-                    page.screenshot(path=str(SCREENSHOT_DIR / f"v025-planning-empty-{width}.png"))
-                    ta.fill(NOTE_EXAMPLE)
+                    # Clic sur le champ : aucune croissance.
+                    ta.click()
+                    assert ta.bounding_box()["height"] == idle_height
+                    page.screenshot(path=str(SCREENSHOT_DIR / f"v026-planning-focus-{width}.png"))
+                    # Saisie et brouillon : toujours une ligne, boutons compacts.
+                    ta.fill(note_text)
                     expect(save).to_be_visible()
                     expect(save).to_be_enabled()
                     expect(cancel).to_be_visible()
+                    assert ta.bounding_box()["height"] == idle_height
+                    assert form.bounding_box()["height"] <= 30
+                    page.locator("h1").click()  # blur
+                    assert ta.bounding_box()["height"] == idle_height
+                    assert ta.evaluate("el => el.scrollHeight > el.clientHeight"), (
+                        "Le texte multiligne doit défiler dans le champ"
+                    )
                     with page.expect_response(
                         lambda r: (
                             r.request.method == "PUT" and "/note/" in r.url and r.status == 200
@@ -66,13 +79,12 @@ class PublicNotesE2ETests(unittest.TestCase):
                     expect(save).to_be_disabled()
                     expect(cancel).to_be_hidden()
                     check_no_horizontal_overflow(page)
-                    page.locator("h1").click()  # blur avant capture
-                    page.screenshot(path=str(SCREENSHOT_DIR / f"v025-planning-note-{width}.png"))
+                    page.screenshot(path=str(SCREENSHOT_DIR / f"v026-planning-note-{width}.png"))
                     page.reload()
-                    expect(page.locator(".event-note-form textarea").first).to_have_value(
-                        NOTE_EXAMPLE
-                    )
                     ta = page.locator(".event-note-form textarea").first
+                    expect(ta).to_have_value(note_text)
+                    page.locator("h1").click()
+                    assert ta.bounding_box()["height"] <= 30
                     ta.fill("")
                     with page.expect_response(
                         lambda r: (

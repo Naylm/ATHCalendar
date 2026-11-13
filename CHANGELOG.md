@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.2.6
+
+- La note de date garde une hauteur fixe d'une ligne : plus d'agrandissement
+  au clic ni à la saisie, le texte défile dans le champ ; les boutons
+  OK/Annuler restent compacts.
+
 ## 0.2.5
 
 - Note de date plus compacte : champ vide réduit à une ligne discrète,

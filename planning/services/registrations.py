@@ -21,10 +21,10 @@ WITHDRAWN = Registration.State.WITHDRAWN
 
 
 def _public_write_allowed(event, today):
+    if event.is_hidden:
+        raise ClosedConflict("Cette date n'est plus visible.")
     if event.status != Event.Status.SCHEDULED:
         raise ClosedConflict("Cette date a été annulée par le Bureau.")
-    if not event.registrations_open:
-        raise ClosedConflict("Les inscriptions sont fermées pour cette date.")
     if event.date < today:
         raise ClosedConflict("Cette date est passée ; modification impossible.")
 

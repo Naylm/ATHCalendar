@@ -56,6 +56,8 @@ def event_detail(request, event_id):
         event = event_services.get_event(event_id)
     except NotFound:
         raise Http404("Date introuvable.") from None
+    if event.is_hidden:
+        raise Http404("Date introuvable.")
     payload = selectors.event_payload(event)
     my_reg = None
     organizer_id = request.GET.get("organizer")

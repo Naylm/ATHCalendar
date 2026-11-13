@@ -6,7 +6,7 @@
   }
 
   function msgFor(form) {
-    return rowFor(form).querySelector(":scope > .form-msg");
+    return rowFor(form).querySelector(".form-msg");
   }
 
   function showMsg(form, text, isError) {

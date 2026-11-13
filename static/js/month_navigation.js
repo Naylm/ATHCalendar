@@ -70,9 +70,13 @@
     if (ks.indexOf(key) === -1 || key === active) return key === active;
     var opts = options || {};
     if (opts.scroll !== false && nav) {
+      var header = document.querySelector(".site-header");
+      var headerBottom = header
+        ? header.getBoundingClientRect().bottom
+        : 0;
       var rect = nav.getBoundingClientRect();
-      if (rect.top < 0) {
-        nav.scrollIntoView({ block: "start" });
+      if (rect.top < headerBottom) {
+        nav.scrollIntoView({ block: "start", behavior: "auto" });
       }
     }
     var focused = document.activeElement;

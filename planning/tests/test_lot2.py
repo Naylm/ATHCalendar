@@ -754,7 +754,7 @@ class GameTypeLabelTests(TestCase):
 class SiteNameContextTests(TestCase):
     def test_default_site_name(self):
         response = Client().get("/")
-        self.assertContains(response, "ATH Calendar")
+        self.assertContains(response, "Calendrier organisateurs ATH")
 
     def test_renamed_site_name_escaped(self):
         from planning.models import SiteSettings

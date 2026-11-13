@@ -27,7 +27,7 @@
       <span class="tag">{{ reg.event.type_label|default:'À définir' }}</span>
       {% if reg.state == 'withdrawn' %}<span class="tag tag-muted">Retirée</span>{% endif %}
       {% if reg.event.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
-      {% if not reg.event.registrations_open %}<span class="tag tag-muted">Fermée</span>{% endif %}
+
     </div>
     <p class="muted">{{ reg.event.period.label }}</p>
     {% if reg.note %}<p>Note&nbsp;: {{ reg.note }}</p>{% endif %}

@@ -155,7 +155,7 @@ def organizer_registrations(request, organizer_id):
                     "version": reg.version,
                     "event_version": reg.event.version,
                     "status": reg.event.status,
-                    "registrations_open": reg.event.registrations_open,
+                    "registrations_open": selectors.public_event_interactive(reg.event),
                     "archived": reg.event.period.is_archived,
                 }
                 for reg in regs

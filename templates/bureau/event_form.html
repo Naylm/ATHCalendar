@@ -1,6 +1,6 @@
 {% extends "bureau/base_bureau.html" %}
 {% block bureau_content %}
-<h1>{{ event.date|date:'l j F Y' }} — {{ period_label|default:event.period.label }}</h1>
+<h1>{{ event.date|date:'l j F Y' }} — {{ period_label|default:event.period.label }} {% if event.is_hidden %}<span class="tag tag-muted">Masquée</span>{% endif %}</h1>
 <div class="card">
   {% if event.period.is_archived %}
   <p class="muted">Période archivée — cette date est en lecture seule. Rouvrez la période pour la modifier.</p>
@@ -13,14 +13,18 @@
   <form method="post" class="inline-actions">
     {% csrf_token %}
     {% if event.status == 'cancelled' %}
-    <button type="submit" name="action" value="restore" class="btn" data-confirm="Restaurer cette date (elle restera fermée) ?">Restaurer (reste fermée)</button>
+    <button type="submit" name="action" value="restore" class="btn" data-confirm="Restaurer cette date ?">Restaurer la date</button>
     {% else %}
     <button type="submit" name="action" value="cancel" class="btn btn-danger" data-confirm="Annuler cette date ?">Annuler la date</button>
     {% endif %}
-    {% if event.registrations_open %}
-    <button type="submit" name="action" value="close" class="btn" data-confirm="Fermer les inscriptions pour cette date ?">Fermer les inscriptions</button>
+  </form>
+  <form method="post" class="inline-actions">
+    {% csrf_token %}
+    <input type="hidden" name="expected_version" value="{{ event.version }}">
+    {% if event.is_hidden %}
+    <button type="submit" name="action" value="unhide" class="btn" data-confirm="Réafficher cette date sur le planning public ?">Réafficher la date</button>
     {% else %}
-    <button type="submit" name="action" value="open" class="btn">Ouvrir les inscriptions</button>
+    <button type="submit" name="action" value="hide" class="btn" data-confirm="Masquer cette date du planning public ? Elle restera restaurable.">Masquer la date</button>
     {% endif %}
   </form>
   {% endif %}
@@ -40,7 +44,7 @@
   <summary>Correction d'inscription (Bureau)</summary>
   <form method="post">
     {% csrf_token %}
-    <p><label>Pseudo
+    <p><label>Nom
       <select name="organizer">
         {% for o in organizers %}<option value="{{ o.pk }}">{{ o.name }}</option>{% endfor %}
       </select></label></p>

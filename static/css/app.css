@@ -82,6 +82,8 @@ h1, h2, h3 {
   align-items: center;
 }
 .top-nav a:hover { color: var(--primary); }
+.top-nav .bureau-link { justify-content: center; min-width: 44px; }
+.bureau-link svg { width: 18px; height: 18px; display: block; flex: none; }
 .top-nav a[aria-current="page"] {
   color: var(--primary);
   text-decoration: underline;
@@ -134,7 +136,7 @@ h1, h2, h3 {
 .event-when { grid-column: 1; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .event-dateline { display: flex; align-items: baseline; gap: 10px; }
 .date-number { font-size: 1.6rem; font-weight: 800; color: var(--primary); line-height: 1; }
-.event-date {
+body[data-page="planning"] .event-date {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -158,20 +160,57 @@ h1, h2, h3 {
 }
 .event-names:empty { display: none; }
 .organizer-name {
-  display: inline-block;
-  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 4px 2px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-alt);
   color: var(--ink);
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1rem;
   overflow-wrap: anywhere;
 }
 .event-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .event-date { font-weight: 600; text-transform: capitalize; }
 .event-title { margin: 6px 0; }
 .event-count { font-size: 0.85rem; }
+.staffing { display: inline-flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: wrap; }
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.dot-none { background: var(--danger-text); }
+.dot-needs_more { background: var(--warning-text); }
+.dot-sufficient { background: var(--success-text); }
+.organizer-label { min-width: 0; overflow-wrap: anywhere; }
+.remove-registration {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.remove-registration:hover:not(:disabled) { color: var(--danger-text); }
+.remove-registration:disabled { opacity: 0.5; cursor: default; }
+@media (pointer: coarse) {
+  .remove-registration { min-width: 44px; min-height: 44px; }
+}
 .event-note { grid-column: 1 / -1; margin: 4px 0 0; color: var(--muted); white-space: pre-wrap; }
 .event-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .event-card.is-cancelled { opacity: 0.7; border-style: dashed; }
@@ -295,6 +334,34 @@ label { display: inline-block; margin-bottom: 4px; }
 form p { margin: 10px 0; }
 form p input, form p select, form p textarea { width: 100%; }
 .inline-form, .inline-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.selection-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  max-width: 480px;
+}
+.selection-toolbar label {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+.selection-toolbar select { min-width: 0; width: 100%; min-height: 44px; }
+.period-back { margin: 0; font-size: 0.9rem; }
+.visibility-form { display: contents; }
+.visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-bottom: 0;
+}
+.bureau-event.is-hidden { opacity: 0.6; }
+.visibility-legend { font-size: 0.85rem; margin: 6px 0; }
+.visibility-msg { font-size: 0.85rem; margin: 4px 0 0; color: var(--danger-text); }
 .inline-form input { width: auto; }
 
 .modal {
@@ -426,6 +493,124 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; }
 
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+body[data-page="planning"] { --planning-columns: 92px minmax(0, 1fr) 140px; }
+body[data-page="planning"] .content { background-color: var(--bg); }
+body[data-page="planning"] .planning-columns,
+body[data-page="planning"] .event-card {
+  display: grid;
+  grid-template-columns: var(--planning-columns);
+  gap: 8px;
+  align-items: center;
+  padding: 6px;
+}
+body[data-page="planning"] .planning-columns {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+body[data-page="planning"] .event-card {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+}
+body[data-page="planning"] .event-when { display: contents; }
+body[data-page="planning"] .event-date-cell {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+body[data-page="planning"] .event-dateline { display: flex; align-items: baseline; gap: 5px; }
+body[data-page="planning"] .date-number { font-size: 1rem; }
+body[data-page="planning"] .date-weekday { font-size: 0.75rem; }
+body[data-page="planning"] .event-count { font-size: 0.75rem; }
+body[data-page="planning"] .staffing-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+body[data-page="planning"] .event-title { margin: 0; font-size: 0.8rem; }
+body[data-page="planning"] .event-when .event-type-select,
+body[data-page="planning"] .event-when > .tag {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+body[data-page="planning"] .event-organizers {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+body[data-page="planning"] .event-names {
+  margin: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+body[data-page="planning"] .organizer-name {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  gap: 2px;
+  font-size: 1rem;
+}
+body[data-page="planning"] .name-registration-form {
+  display: flex;
+  flex: 1 1 160px;
+  max-width: 220px;
+  min-width: 0;
+  gap: 4px;
+  margin: 0;
+}
+body[data-page="planning"] .name-registration-form input {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 auto;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 6px 4px;
+  min-height: 32px;
+}
+body[data-page="planning"] .name-registration-form button {
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 0;
+  font-size: 1.2rem;
+}
+body[data-page="planning"] .event-organizers .form-msg { flex-basis: 100%; }
+body[data-page="planning"] .event-card.weekend-start {
+  margin-top: 12px;
+  border-top: 2px solid var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
@@ -437,8 +622,8 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; }
 @media (max-width: 719px) {
   .header-inner {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 6px;
     padding: 8px 12px;
   }
   .brand {
@@ -452,21 +637,61 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; }
   }
   .brand img { width: 36px; height: 36px; flex: none; }
   .brand span { min-width: 0; }
-  .top-nav { gap: 0; }
-  .top-nav a[href="/"] { display: none; }
-  .top-nav a { font-size: 0.85rem; }
+  .top-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  .top-nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .top-nav a[aria-current="page"] {
+    color: var(--primary);
+    border-color: var(--primary);
+    text-decoration: none;
+  }
+  .top-nav a[href="/bureau/"] {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 400;
+  }
+  .top-nav a[href="/bureau/"]:hover,
+  .top-nav a[href="/bureau/"]:focus-visible {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+  .top-nav a[href="/bureau/"][aria-current="page"] {
+    color: var(--primary);
+    border-color: transparent;
+    text-decoration: underline;
+  }
   .content { padding: 12px; }
   h1#planning-title { margin: 12px 0 6px; font-size: 1.35rem; }
   .page-head { gap: 6px; }
   .page-head h2 { margin: 4px 0 8px; font-size: 0.95rem; color: var(--muted); }
   .month-group { margin: 8px 0; }
+  .month-navigation { scroll-margin-top: 124px; }
   .event-card {
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 10px;
     margin: 8px 0;
     min-width: 0;
-    scroll-margin-top: 80px;
+    scroll-margin-top: 124px;
   }
   .event-card > * { min-width: 0; }
   .event-when {
@@ -491,7 +716,6 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; }
   .event-title { grid-column: 1 / -1; grid-row: 3; margin: 0; }
   .date-weekday { font-size: 0.95rem; overflow-wrap: anywhere; }
   .event-names { grid-column: 1; }
-  .organizer-name { font-size: 1rem; padding: 3px 8px; }
   .name-registration-form {
     grid-column: 1;
     grid-row: auto;
@@ -504,4 +728,80 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; }
   .event-card > .tag { grid-column: 1; grid-row: auto; justify-self: start; }
   .form-msg, .type-msg, .event-note { grid-column: 1; }
   input, select, textarea { font-size: 16px; }
+  body[data-page="planning"] { --planning-columns: 54px minmax(0, 1fr) 96px; }
+  body[data-page="planning"] .planning-columns,
+  body[data-page="planning"] .event-card {
+    grid-template-columns: var(--planning-columns);
+    gap: 6px;
+    padding: 6px 0;
+  }
+  body[data-page="planning"] .event-dateline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  body[data-page="planning"] .date-weekday { font-size: 0.7rem; }
+  body[data-page="planning"] .event-type-select {
+    min-height: 44px;
+    padding: 6px 4px;
+    min-width: 0;
+  }
+  body[data-page="planning"] .event-organizers { width: 100%; }
+  body[data-page="planning"] .name-registration-form {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  body[data-page="planning"] .name-registration-form input { min-height: 44px; }
+  body[data-page="planning"] .name-registration-form button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  body[data-page="planning"] .planning-columns { display: none; }
+  body[data-page="planning"] .event-card:has(.organizer-name) {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-date-cell {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-dateline {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .date-weekday {
+    font-size: 0.8rem;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-title {
+    flex-basis: 100%;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-when .event-type-select,
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-when > .tag {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-organizers {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .event-names {
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+  body[data-page="planning"] .event-card:has(.organizer-name) .name-registration-form {
+    flex: 1 1 140px;
+    max-width: none;
+    min-width: 0;
+  }
 }

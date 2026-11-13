@@ -202,44 +202,33 @@ class LiveSyncTests(unittest.TestCase):
                 expect(self._select(page, event_id)).to_have_value(winner, timeout=8000)
             browser.close()
 
-    def test_remote_close_keeps_draft_then_reopen(self):
+    def test_legacy_closure_flag_keeps_draft_interactive(self):
         with self._server() as server, browser_tests()() as pw:
             event_id = self._first_event_id(server)
             browser, page_a, page_b, navs = self._open_pair(pw, server)
-            input_b = page_b.locator(f"#date-{event_id} .name-registration-form input[name=name]")
-            input_b.fill("Draft")
-            server.seed(
-                "from planning.models import Event\n"
-                f"e = Event.objects.get(pk='{event_id}')\n"
-                "e.registrations_open = False\n"
-                "e.save(update_fields=['registrations_open'])\n"
-                "p = e.period\n"
-                "p.revision += 1\n"
-                "p.save(update_fields=['revision'])\n"
-            )
+            row_a = page_a.locator(f"#date-{event_id}")
             row_b = page_b.locator(f"#date-{event_id}")
-            expect(row_b.locator(".name-registration-form button[type=submit]")).to_be_disabled(
-                timeout=8000
-            )
-            status = row_b.locator(".event-lock-status")
-            expect(status).to_be_visible(timeout=8000)
-            expect(status).to_contain_text("Inscriptions fermées")
-            assert input_b.input_value() == "Draft"
-            assert input_b.is_enabled()
-            server.seed(
-                "from planning.models import Event\n"
-                f"e = Event.objects.get(pk='{event_id}')\n"
-                "e.registrations_open = True\n"
-                "e.save(update_fields=['registrations_open'])\n"
-                "p = e.period\n"
-                "p.revision += 1\n"
-                "p.save(update_fields=['revision'])\n"
-            )
-            expect(row_b.locator(".name-registration-form button[type=submit]")).to_be_enabled(
-                timeout=8000
-            )
-            expect(row_b.locator(".event-lock-status")).to_have_count(0)
-            assert input_b.input_value() == "Draft"
+            input_b = row_b.locator(".name-registration-form input[name=name]")
+            input_b.fill("Draft")
+            for flag in ("False", "True"):
+                server.seed(
+                    "from planning.models import Event\n"
+                    f"e = Event.objects.get(pk='{event_id}')\n"
+                    f"e.registrations_open = {flag}\n"
+                    "e.save(update_fields=['registrations_open'])\n"
+                    "p = e.period\n"
+                    "p.revision += 1\n"
+                    "p.save(update_fields=['revision'])\n"
+                )
+                for page in (page_a, page_b):
+                    page.evaluate("window.ath.live.refresh(true)")
+                for row in (row_a, row_b):
+                    assert row.get_attribute("data-open") == "true"
+                    expect(row.locator(".event-lock-status")).to_have_count(0)
+                    assert row.locator(".name-registration-form button[type=submit]").is_enabled()
+                assert input_b.input_value() == "Draft"
+                assert input_b.is_enabled()
+            assert navs["a"] == 0 and navs["b"] == 0
             browser.close()
 
     def test_no_overlapping_live_requests(self):

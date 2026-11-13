@@ -1,0 +1,44 @@
+{% extends "bureau/base_bureau.html" %}
+{% block bureau_content %}
+<h1>Clôturer les inscriptions — {{ period.label }}</h1>
+<div class="card">
+  <p class="muted">Cochez les dates à conserver. Les autres seront masquées et restaurables.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.keep_event_ids.errors }}
+    {{ form.expected_revision.errors }}
+    <input type="hidden" name="expected_revision" value="{{ expected_revision }}">
+    <ul class="event-list">
+      {% for event in events %}
+      <li class="card event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}">
+        <div class="event-head">
+          <label>
+            <input type="checkbox" name="keep_event_ids" value="{{ event.pk }}"
+                   {% if event.keep_checked %}checked{% endif %}
+                   {% if event.payload.status == 'cancelled' %}disabled{% endif %}>
+            <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
+          </label>
+          <span class="tag">{{ event.payload.type_label }}</span>
+          {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
+          {% if event.is_hidden %}<span class="tag tag-muted">Masquée</span>{% endif %}
+        </div>
+        <p class="muted">{% include "planning/_staffing.html" %}{% if event.capacity %} · cap {{ event.capacity }}{% endif %}</p>
+        {% if event.payload.organizers %}
+        <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span></span>{% endfor %}</p>
+        {% endif %}
+      </li>
+      {% empty %}
+      <li class="card muted">Aucune date future.</li>
+      {% endfor %}
+    </ul>
+    {{ form.confirm_close.errors }}
+    <p>
+      <label for="id_confirm_close">Confirmer la clôture</label>
+      <input type="checkbox" name="confirm_close" id="id_confirm_close" required>
+    </p>
+    <button type="submit" class="btn btn-primary">Clôturer et masquer les autres dates</button>
+    <a class="btn" href="/bureau/periodes/{{ period.pk }}/">Annuler</a>
+  </form>
+</div>
+{% endblock %}

@@ -120,10 +120,11 @@ class RegistrationTests(TestCase):
             event_services.update_event(self.event.pk, actor=BUREAU, capacity=2)
         self.assertEqual(self.event.registrations.filter(state="active").count(), 3)
 
-    def test_closed_event_blocks_public(self):
+    def test_closed_flag_does_not_block_public(self):
         event_services.set_registrations_open(self.event.pk, actor=BUREAU, is_open=False)
-        with self.assertRaises(ClosedConflict):
-            self.register()
+        reg = self.register()
+        self.assertEqual(reg.state, "active")
+        self.assertFalse(Event.objects.get(pk=self.event.pk).registrations_open)
 
     def test_cancelled_event_blocks_public(self):
         event_services.cancel_event(self.event.pk, actor=BUREAU)
@@ -160,16 +161,15 @@ class RegistrationTests(TestCase):
                 self.event.pk, self.organizer.pk, "withdrawn", actor=self.public
             )
 
-    def test_restore_leaves_registrations_closed(self):
+    def test_restore_leaves_flag_but_allows_signup(self):
         event_services.cancel_event(self.event.pk, actor=BUREAU)
         event_services.restore_event(self.event.pk, actor=BUREAU)
         self.event.refresh_from_db()
         self.assertEqual(self.event.status, Event.Status.SCHEDULED)
         self.assertFalse(self.event.registrations_open)
-        with self.assertRaises(ClosedConflict):
-            self.register()
-        event_services.set_registrations_open(self.event.pk, actor=BUREAU, is_open=True)
-        self.register()
+        reg = self.register()
+        self.assertEqual(reg.state, "active")
+        self.assertFalse(Event.objects.get(pk=self.event.pk).registrations_open)
 
     def test_inactive_pseudo_blocked(self):
         organizers.set_organizer_active(self.organizer.pk, actor=BUREAU, active=False)
@@ -178,11 +178,16 @@ class RegistrationTests(TestCase):
 
     def test_batch_atomic_rollback(self):
         open_event = self.period.events.get(date=date(2027, 1, 9))
-        closed_event = self.period.events.get(date=date(2027, 1, 16))
-        event_services.set_registrations_open(closed_event.pk, actor=BUREAU, is_open=False)
+        locked_event = self.period.events.get(date=date(2027, 1, 16))
+        event_services.set_event_hidden(
+            locked_event.pk,
+            actor=BUREAU,
+            is_hidden=True,
+            expected_version=locked_event.version,
+        )
         with self.assertRaises(Conflict):
             registrations.batch_set(
-                [open_event.pk, closed_event.pk],
+                [open_event.pk, locked_event.pk],
                 self.organizer.pk,
                 "active",
                 actor=self.public,

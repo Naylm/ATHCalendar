@@ -151,8 +151,13 @@ class PublicTypeApiTests(TestCase):
             }
             self.assertEqual(self._put(body).status_code, 400, extra)
 
-    def test_closed_event_409(self):
-        events.set_registrations_open(self.event.pk, actor=BUREAU, is_open=False)
+    def test_hidden_event_409(self):
+        events.set_event_hidden(
+            self.event.pk,
+            actor=BUREAU,
+            is_hidden=True,
+            expected_version=self._version(),
+        )
         response = self._put(
             {"game_type_id": str(self.flex.pk), "expected_event_version": self._version()}
         )

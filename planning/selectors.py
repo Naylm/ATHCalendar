@@ -1,4 +1,5 @@
 import itertools
+from datetime import timedelta
 
 from django.db.models import Count, F, Prefetch, Q
 
@@ -11,6 +12,7 @@ from planning.models import (
     SiteSettings,
 )
 
+from .errors import ValidationFailed
 from .services.organizers import alias_ids
 from .services.periods import get_period, paris_today
 
@@ -25,6 +27,7 @@ def default_period(requested_id=None, *, today=None):
     next_event = (
         Event.objects.filter(
             status=Event.Status.SCHEDULED,
+            is_hidden=False,
             date__gte=today,
             period__archived_at__isnull=True,
         )
@@ -79,6 +82,71 @@ def period_events(period):
     )
 
 
+BUREAU_STAFFING_FILTERS = (
+    ("none", "0 inscrit"),
+    ("one", "1 inscrit"),
+    ("under", "Minimum non atteint"),
+    ("all", "Toutes"),
+)
+BUREAU_STAFFING_VALUES = frozenset(value for value, _ in BUREAU_STAFFING_FILTERS)
+
+
+def bureau_cleanup_events(period, staffing_filter, *, today=None):
+    today = today or paris_today()
+    if staffing_filter not in BUREAU_STAFFING_VALUES:
+        raise ValidationFailed(
+            "Filtre d'inscriptions invalide.",
+            fields={"staffing": "Filtre inconnu."},
+        )
+    qs = period_events(period).filter(
+        is_hidden=False,
+        status=Event.Status.SCHEDULED,
+        date__gte=today,
+    )
+    if staffing_filter == "none":
+        qs = qs.filter(active_registrations=0)
+    elif staffing_filter == "one":
+        qs = qs.filter(active_registrations=1)
+    elif staffing_filter == "under":
+        qs = qs.filter(active_registrations__lt=F("min_organizers"))
+    return qs
+
+
+BUREAU_MANAGEMENT_FILTERS = (
+    ("all", "Dates à venir"),
+    ("none", "0 inscrit"),
+    ("one", "1 inscrit"),
+    ("under", "Minimum non atteint"),
+    ("hidden", "Dates masquées"),
+    ("history", "Toutes les dates"),
+)
+BUREAU_MANAGEMENT_VALUES = frozenset(value for value, _ in BUREAU_MANAGEMENT_FILTERS)
+
+
+def bureau_management_events(period, staffing_filter, *, today=None):
+    today = today or paris_today()
+    if staffing_filter in BUREAU_STAFFING_VALUES:
+        qs = period_events(period).filter(
+            status=Event.Status.SCHEDULED,
+            date__gte=today,
+        )
+        if staffing_filter == "none":
+            qs = qs.filter(active_registrations=0)
+        elif staffing_filter == "one":
+            qs = qs.filter(active_registrations=1)
+        elif staffing_filter == "under":
+            qs = qs.filter(active_registrations__lt=F("min_organizers"))
+        return qs
+    if staffing_filter not in BUREAU_MANAGEMENT_VALUES:
+        raise ValidationFailed(
+            "Filtre d'affichage invalide.",
+            fields={"staffing": "Filtre inconnu."},
+        )
+    if staffing_filter == "hidden":
+        return period_events(period).filter(is_hidden=True)
+    return period_events(period)
+
+
 EVENT_FILTERS = {"avenir", "renfort", "toutes"}
 
 
@@ -86,7 +154,7 @@ def filtered_events(period, filtre=None, *, today=None):
     today = today or paris_today()
     if filtre not in EVENT_FILTERS:
         filtre = "toutes" if period.is_archived else "avenir"
-    qs = period_events(period)
+    qs = period_events(period).exclude(is_hidden=True)
     if filtre == "avenir":
         return qs.filter(date__gte=today), filtre
     if filtre == "renfort":
@@ -101,6 +169,17 @@ def filtered_events(period, filtre=None, *, today=None):
     return qs, filtre
 
 
+def public_event_interactive(event, *, today=None):
+    today = today or paris_today()
+    is_archived = event.period.is_archived if hasattr(event, "period") else False
+    return (
+        event.status == Event.Status.SCHEDULED
+        and event.date >= today
+        and not is_archived
+        and not event.is_hidden
+    )
+
+
 def event_payload(event, today=None):
     today = today or paris_today()
     active_regs = getattr(event, "active_regs", None)
@@ -110,9 +189,11 @@ def event_payload(event, today=None):
         )
     regs = [
         {
+            "registration_id": str(reg.pk),
             "organizer_id": str(reg.organizer_id),
             "organizer_name": reg.organizer_name,
             "note": reg.note,
+            "version": reg.version,
         }
         for reg in active_regs
     ]
@@ -123,6 +204,9 @@ def event_payload(event, today=None):
         fill = "needs_more"
     else:
         fill = "sufficient"
+    is_past = event.date < today
+    is_archived = event.period.is_archived if hasattr(event, "period") else False
+    interactive = public_event_interactive(event, today=today)
     return {
         "id": str(event.pk),
         "period_id": str(event.period_id),
@@ -136,10 +220,12 @@ def event_payload(event, today=None):
         "min_organizers": event.min_organizers,
         "capacity": event.capacity,
         "status": event.status,
-        "registrations_open": event.registrations_open,
+        "registrations_open": interactive,
+        "is_hidden": event.is_hidden,
         "version": event.version,
-        "is_past": event.date < today,
-        "is_archived": event.period.is_archived if hasattr(event, "period") else False,
+        "is_past": is_past,
+        "is_archived": is_archived,
+        "interactive": interactive,
         "active_count": count,
         "fill": fill,
         "organizers": regs,
@@ -151,6 +237,7 @@ def organizer_registrations(organizer, *, include_past=False, today=None):
     ids = alias_ids(organizer)
     qs = (
         Registration.objects.filter(organizer_id__in=ids)
+        .exclude(event__is_hidden=True)
         .select_related("event", "event__period")
         .order_by("event__date")
     )
@@ -175,6 +262,15 @@ def planning_context(period, filtre=None):
             for _, group in itertools.groupby(events, key=lambda e: (e.date.year, e.date.month))
         )
     ]
+    for month in months:
+        previous = None
+        for event in month["events"]:
+            event.weekend_start = previous is not None and not (
+                previous.date.weekday() == 5
+                and event.date.weekday() == 6
+                and event.date - previous.date == timedelta(days=1)
+            )
+            previous = event
     return {
         "period": period,
         "months": months,

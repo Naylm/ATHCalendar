@@ -43,7 +43,6 @@
 
   function statusLabel(ev) {
     if (ev.status === "cancelled") return "annulée";
-    if (!ev.registrations_open) return "inscriptions fermées";
     if (ev.fill === "needs_more") return "renfort nécessaire";
     if (ev.fill === "sufficient") return "équipe suffisante";
     return "aucun organisateur";
@@ -114,15 +113,13 @@
       if (ev) {
         cell.classList.add(ev.fill);
         if (ev.status === "cancelled") cell.classList.add("cancelled");
-        else if (!ev.registrations_open) cell.classList.add("closed");
         var count = document.createElement("span");
         count.className = "count";
         count.textContent = ev.active_count + "/" + ev.min_organizers;
         cell.appendChild(count);
         var flag = document.createElement("span");
         flag.className = "flag";
-        flag.textContent = ev.status === "cancelled" ? "Annulée" :
-          (!ev.registrations_open ? "Fermée" : "");
+        flag.textContent = ev.status === "cancelled" ? "Annulée" : "";
         cell.appendChild(flag);
         cell.setAttribute("aria-label",
           label + " — " + ev.active_count + " organisateur(s), " +

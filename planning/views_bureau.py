@@ -1,5 +1,4 @@
 import csv
-import json
 from datetime import date
 
 from django.conf import settings as django_settings
@@ -9,6 +8,7 @@ from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from . import forms, selectors
@@ -38,6 +38,7 @@ def _bureau_actor(request):
     return actor_for_request(request)
 
 
+@never_cache
 @require_http_methods(["GET", "POST"])
 def bureau_login(request):
     if is_bureau(request.user):
@@ -67,6 +68,7 @@ def bureau_login(request):
     return render(request, "bureau/login.html", {"form": form})
 
 
+@never_cache
 @require_POST
 def bureau_logout(request):
     logout(request)
@@ -153,6 +155,178 @@ def period_create(request):
     )
 
 
+def _selection_candidates(period, staffing):
+    if period.is_archived:
+        return []
+    if staffing == "hidden":
+        return list(selectors.bureau_management_events(period, "hidden"))
+    action_filter = staffing if staffing in selectors.BUREAU_STAFFING_VALUES else "all"
+    return list(selectors.bureau_cleanup_events(period, action_filter))
+
+
+def _period_detail_context(
+    period, staffing, filter_form=None, selection_form=None, checked=None, empty=False
+):
+    try:
+        events = [] if empty else list(selectors.bureau_management_events(period, staffing))
+    except ValidationFailed:
+        events = []
+    eligible = set() if empty else {event.pk for event in _selection_candidates(period, staffing)}
+    for event in events:
+        event.payload = selectors.event_payload(event)
+        event.selectable = event.pk in eligible
+        event.checked = bool(event.selectable and checked is not None and str(event.pk) in checked)
+    if filter_form is None:
+        filter_form = forms.PeriodManagementFilterForm(initial={"staffing": staffing})
+    return {
+        "period": period,
+        "staffing": staffing,
+        "events": events,
+        "has_eligible": bool(eligible),
+        "filter_form": filter_form,
+        "selection_form": selection_form,
+        "expected_revision": period.revision,
+        "missing_dates": (
+            [] if period.is_archived else period_services.missing_weekend_dates(period)
+        ),
+        "form": forms.PeriodEditForm(
+            initial={
+                "label": period.label,
+                "start_date": period.start_date,
+                "end_date": period.end_date,
+                "expected_version": period.version,
+            }
+        ),
+        "event_form": forms.EventForm(
+            initial={
+                "min_organizers": SiteSettings.get().default_min_organizers,
+                "capacity": SiteSettings.get().default_capacity,
+            }
+        ),
+        "game_types": GameType.objects.filter(is_active=True),
+    }
+
+
+def _period_selection(request, period):
+    detail_url = f"/bureau/periodes/{period.pk}/"
+    filter_form = forms.PeriodManagementFilterForm({"staffing": request.POST.get("staffing", "")})
+    if not filter_form.is_valid():
+        period.refresh_from_db()
+        default = "history" if period.is_archived else "all"
+        context = _period_detail_context(period, default, filter_form=filter_form, empty=True)
+        return render(request, "bureau/period_detail.html", context)
+    staffing = filter_form.cleaned_data["staffing"]
+    if period.is_archived:
+        messages.error(request, "La période est archivée ; les dates sont en lecture seule.")
+        return redirect(f"{detail_url}?staffing={staffing}")
+    candidates = _selection_candidates(period, staffing)
+    form = forms.PeriodSelectionForm(request.POST, candidates=candidates)
+    action_filter = staffing if staffing in selectors.BUREAU_STAFFING_VALUES else "all"
+    if form.is_valid():
+        try:
+            selection_action = form.cleaned_data["selection_action"]
+            if selection_action == "hide":
+                changed = period_services.hide_selected_dates(
+                    period.pk,
+                    actor=_bureau_actor(request),
+                    event_ids=form.cleaned_data["event_ids"],
+                    staffing_filter=action_filter,
+                    expected_revision=form.cleaned_data["expected_revision"],
+                )
+                messages.success(request, f"{len(changed)} date(s) masquée(s).")
+            else:
+                changed = period_services.unhide_selected_dates(
+                    period.pk,
+                    actor=_bureau_actor(request),
+                    event_ids=form.cleaned_data["event_ids"],
+                    expected_revision=form.cleaned_data["expected_revision"],
+                )
+                messages.success(
+                    request,
+                    f"{len(changed)} date(s) réaffichée(s). Les inscriptions restent fermées.",
+                )
+        except ServiceError as exc:
+            _flash_error(request, exc)
+            period.refresh_from_db()
+            context = _period_detail_context(
+                period,
+                staffing,
+                filter_form=filter_form,
+                checked=set(request.POST.getlist("event_ids")),
+            )
+            return render(request, "bureau/period_detail.html", context)
+        return redirect(f"{detail_url}?staffing={staffing}")
+    period.refresh_from_db()
+    context = _period_detail_context(
+        period,
+        staffing,
+        filter_form=filter_form,
+        selection_form=form,
+        checked=set(request.POST.getlist("event_ids")),
+    )
+    return render(request, "bureau/period_detail.html", context)
+
+
+def _date_visibility(request, period):
+    wants_json = "application/json" in request.headers.get("Accept", "")
+    staffing = request.POST.get("staffing", "")
+    if staffing not in selectors.BUREAU_MANAGEMENT_VALUES:
+        staffing = "history" if period.is_archived else "all"
+
+    def _redirect():
+        return redirect(f"/bureau/periodes/{period.pk}/?staffing={staffing}")
+
+    def _event_state(event):
+        return {
+            "id": str(event.pk),
+            "is_hidden": event.is_hidden,
+            "version": event.version,
+            "registrations_open": selectors.public_event_interactive(event),
+        }
+
+    form = forms.DateVisibilityForm(request.POST)
+    if not form.is_valid():
+        if wants_json:
+            return JsonResponse(
+                {
+                    "error": {
+                        "code": "invalid",
+                        "message": "Paramètres de visibilité invalides.",
+                    }
+                },
+                status=400,
+            )
+        messages.error(request, "Paramètres de visibilité invalides.")
+        return _redirect()
+    try:
+        event = period_services.set_date_visibility(
+            period.pk,
+            form.cleaned_data["event_id"],
+            actor=_bureau_actor(request),
+            is_visible=form.cleaned_data["visible"],
+            expected_revision=form.cleaned_data["expected_revision"],
+            expected_version=form.cleaned_data["expected_version"],
+        )
+    except ServiceError as exc:
+        period.refresh_from_db()
+        if wants_json:
+            body = {
+                "error": {"code": exc.code, "message": exc.message},
+                "revision": period.revision,
+            }
+            target = Event.objects.filter(pk=form.cleaned_data["event_id"], period=period).first()
+            if target is not None:
+                body["event"] = _event_state(target)
+            return JsonResponse(body, status=exc.status)
+        _flash_error(request, exc)
+        return _redirect()
+    period.refresh_from_db()
+    if wants_json:
+        return JsonResponse({"event": _event_state(event), "revision": period.revision})
+    messages.success(request, "Visibilité mise à jour.")
+    return _redirect()
+
+
 @bureau_page
 @require_http_methods(["GET", "POST"])
 def period_detail(request, period_id):
@@ -163,6 +337,10 @@ def period_detail(request, period_id):
         return redirect("/bureau/")
     if request.method == "POST":
         action = request.POST.get("action")
+        if action == "visibility":
+            return _date_visibility(request, period)
+        if action == "selection":
+            return _period_selection(request, period)
         try:
             if action == "update":
                 form = forms.PeriodEditForm(request.POST)
@@ -196,53 +374,120 @@ def period_detail(request, period_id):
                         actor=_bureau_actor(request),
                         selected_dates=chosen,
                     )
-            elif action == "close_all":
-                period_services.set_period_registrations(
-                    period.pk, actor=_bureau_actor(request), is_open=False
-                )
-            elif action == "open_all":
-                period_services.set_period_registrations(
-                    period.pk, actor=_bureau_actor(request), is_open=True
-                )
+            elif action in ("close_all", "open_all"):
+                messages.info(request, "La fermeture des inscriptions est désactivée.")
         except ServiceError as exc:
             _flash_error(request, exc)
         return redirect(f"/bureau/periodes/{period.pk}/")
     period.refresh_from_db()
-    events = list(selectors.period_events(period))
+    default = "history" if period.is_archived else "all"
+    if "staffing" in request.GET:
+        filter_form = forms.PeriodManagementFilterForm(request.GET)
+        if filter_form.is_valid():
+            context = _period_detail_context(
+                period, filter_form.cleaned_data["staffing"], filter_form=filter_form
+            )
+        else:
+            context = _period_detail_context(period, default, filter_form=filter_form, empty=True)
+    else:
+        context = _period_detail_context(period, default)
+    return render(request, "bureau/period_detail.html", context)
+
+
+@bureau_page
+@require_http_methods(["GET", "POST"])
+def period_finalize(request, period_id):
+    try:
+        period = period_services.get_period(period_id)
+    except ServiceError as exc:
+        _flash_error(request, exc)
+        return redirect("/bureau/")
+    messages.info(request, "La visibilité se gère directement avec les cases du planning.")
+    return redirect(f"/bureau/periodes/{period.pk}/")
+
+
+def _cleanup_context(period, staffing, filter_form=None, form=None, checked=None):
+    try:
+        events = list(selectors.bureau_cleanup_events(period, staffing))
+    except ValidationFailed:
+        events = []
     for event in events:
         event.payload = selectors.event_payload(event)
-    missing_dates = [] if period.is_archived else period_services.missing_weekend_dates(period)
-    batch_form = forms.EventsBatchForm(
-        period=period,
-        types=GameType.objects.filter(is_active=True),
-        initial={"versions_json": json.dumps({str(event.pk): event.version for event in events})},
+        event.checked = checked is None or str(event.pk) in checked
+    if filter_form is None:
+        filter_form = forms.DateCleanupFilterForm(initial={"staffing": staffing})
+    return {
+        "period": period,
+        "staffing": staffing,
+        "events": events,
+        "filter_form": filter_form,
+        "form": form,
+        "expected_revision": period.revision,
+    }
+
+
+@bureau_page
+@require_http_methods(["GET", "POST"])
+def period_cleanup(request, period_id):
+    try:
+        period = period_services.get_period(period_id)
+    except ServiceError as exc:
+        _flash_error(request, exc)
+        return redirect("/bureau/")
+    detail_url = f"/bureau/periodes/{period.pk}/"
+    if period.is_archived and request.method == "GET":
+        messages.error(request, "La période est archivée ; les dates sont en lecture seule.")
+        return redirect(detail_url)
+    if request.method == "GET":
+        if "staffing" in request.GET:
+            filter_form = forms.DateCleanupFilterForm(request.GET)
+            if filter_form.is_valid():
+                staffing = filter_form.cleaned_data["staffing"]
+                context = _cleanup_context(period, staffing, filter_form=filter_form)
+            else:
+                context = _cleanup_context(period, "none", filter_form=filter_form)
+                context["events"] = []
+        else:
+            context = _cleanup_context(period, "none")
+        return render(request, "bureau/period_cleanup.html", context)
+    filter_form = forms.DateCleanupFilterForm({"staffing": request.POST.get("staffing", "")})
+    if not filter_form.is_valid():
+        context = _cleanup_context(period, "none", filter_form=filter_form)
+        context["events"] = []
+        return render(request, "bureau/period_cleanup.html", context)
+    staffing = filter_form.cleaned_data["staffing"]
+    candidates = list(selectors.bureau_cleanup_events(period, staffing))
+    form = forms.DateCleanupForm(request.POST, candidates=candidates)
+    if form.is_valid():
+        try:
+            changed = period_services.hide_selected_dates(
+                period.pk,
+                actor=_bureau_actor(request),
+                event_ids=form.cleaned_data["event_ids"],
+                staffing_filter=form.cleaned_data["staffing"],
+                expected_revision=form.cleaned_data["expected_revision"],
+            )
+        except ServiceError as exc:
+            _flash_error(request, exc)
+            period.refresh_from_db()
+            context = _cleanup_context(
+                period,
+                staffing,
+                filter_form=filter_form,
+                checked=set(request.POST.getlist("event_ids")),
+            )
+            return render(request, "bureau/period_cleanup.html", context)
+        messages.success(request, f"{len(changed)} date(s) masquée(s).")
+        return redirect(detail_url)
+    period.refresh_from_db()
+    context = _cleanup_context(
+        period,
+        staffing,
+        filter_form=filter_form,
+        form=form,
+        checked=set(request.POST.getlist("event_ids")),
     )
-    form = forms.PeriodEditForm(
-        initial={
-            "label": period.label,
-            "start_date": period.start_date,
-            "end_date": period.end_date,
-            "expected_version": period.version,
-        }
-    )
-    return render(
-        request,
-        "bureau/period_detail.html",
-        {
-            "period": period,
-            "events": events,
-            "form": form,
-            "event_form": forms.EventForm(
-                initial={
-                    "min_organizers": SiteSettings.get().default_min_organizers,
-                    "capacity": SiteSettings.get().default_capacity,
-                }
-            ),
-            "game_types": GameType.objects.filter(is_active=True),
-            "missing_dates": missing_dates,
-            "batch_form": batch_form,
-        },
-    )
+    return render(request, "bureau/period_cleanup.html", context)
 
 
 @bureau_page
@@ -306,13 +551,18 @@ def event_edit(request, event_id):
                 event_services.cancel_event(event.pk, actor=_bureau_actor(request))
             elif action == "restore":
                 event_services.restore_event(event.pk, actor=_bureau_actor(request))
-            elif action == "open":
-                event_services.set_registrations_open(
-                    event.pk, actor=_bureau_actor(request), is_open=True
-                )
-            elif action == "close":
-                event_services.set_registrations_open(
-                    event.pk, actor=_bureau_actor(request), is_open=False
+            elif action in ("open", "close"):
+                messages.info(request, "La fermeture des inscriptions est désactivée.")
+            elif action in ("hide", "unhide"):
+                try:
+                    expected = int(request.POST.get("expected_version", ""))
+                except (ValueError, TypeError):
+                    raise ValidationFailed("Version invalide.") from None
+                event_services.set_event_hidden(
+                    event.pk,
+                    actor=_bureau_actor(request),
+                    is_hidden=action == "hide",
+                    expected_version=expected,
                 )
             elif action == "registration":
                 reg_form = forms.BureauRegistrationForm(request.POST)
@@ -378,17 +628,16 @@ def events_batch(request, period_id):
             if capacity is None:
                 messages.error(request, "Indiquez une valeur de capacité.")
                 return redirect(f"/bureau/periodes/{period_id}/")
+        if form.cleaned_data["registrations"]:
+            messages.error(request, "La fermeture des inscriptions est désactivée.")
+            return redirect(f"/bureau/periodes/{period_id}/")
         result = event_services.batch_update(
             form.cleaned_data["event_ids"],
             actor=_bureau_actor(request),
             game_type_id=form.cleaned_data["game_type"],
             min_organizers=form.cleaned_data["min_organizers"],
             capacity=capacity,
-            registrations_open=(
-                {"open": True, "close": False}.get(form.cleaned_data["registrations"])
-                if form.cleaned_data["registrations"]
-                else None
-            ),
+            registrations_open=None,
             cancel=(
                 {"cancel": True, "restore": False}.get(form.cleaned_data["status"])
                 if form.cleaned_data["status"]
@@ -653,6 +902,7 @@ def export_business_json(request):
                 "origin": e.origin,
                 "status": e.status,
                 "registrations_open": e.registrations_open,
+                "is_hidden": e.is_hidden,
                 "version": e.version,
             }
             for e in Event.objects.order_by("date")

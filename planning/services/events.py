@@ -221,10 +221,10 @@ def set_public_game_type(event_id, *, actor: Actor, game_type_id, expected_versi
         event = Event.objects.select_related("period").get(pk=event.pk)
         period = event.period
         _require_not_archived(period)
+        if event.is_hidden:
+            raise ClosedConflict("Cette date n'est plus visible.")
         if event.status != Event.Status.SCHEDULED:
             raise ClosedConflict("Cette date a été annulée par le Bureau.")
-        if not event.registrations_open:
-            raise ClosedConflict("Les inscriptions sont fermées pour cette date.")
         if event.date < paris_today():
             raise ClosedConflict("Cette date est passée ; modification impossible.")
         _check_version(event, expected_version)
@@ -285,6 +285,38 @@ def set_registrations_open(event_id, *, actor: Actor, is_open, expected_version=
     )
 
 
+def set_event_hidden(event_id, *, actor: Actor, is_hidden, expected_version):
+    is_hidden = require_bool(is_hidden, "Visibilité", field="is_hidden")
+    expected_version = require_int(expected_version, "Version", minimum=0, field="version")
+    event = get_event(event_id)
+    _require_bureau(actor)
+    with write_transaction():
+        event = Event.objects.select_related("period").get(pk=event.pk)
+        period = event.period
+        _require_not_archived(period)
+        _check_version(event, expected_version)
+        before = audit.snapshot(event)
+        changed = False
+        if event.is_hidden != is_hidden:
+            event.is_hidden = is_hidden
+            changed = True
+        if event.registrations_open and (changed or event.is_hidden):
+            event.registrations_open = False
+            changed = True
+        if changed:
+            event.version += 1
+            event.save(update_fields=["is_hidden", "registrations_open", "version", "updated_at"])
+            bump_revision(period)
+            audit.log(
+                actor=actor,
+                action="event.hide" if is_hidden else "event.unhide",
+                target=event,
+                before=before,
+                after=audit.snapshot(event),
+            )
+        return event
+
+
 def _set_event_flag(event_id, *, actor, expected_version, status, registrations_open, action):
     event = get_event(event_id)
     _require_bureau(actor)
@@ -295,6 +327,8 @@ def _set_event_flag(event_id, *, actor, expected_version, status, registrations_
         period = event.period
         _require_not_archived(period)
         _check_version(event, expected_version)
+        if registrations_open and event.is_hidden:
+            raise ClosedConflict("Cette date est masquée ; réaffichez-la d'abord.")
         changed = False
         before = audit.snapshot(event)
         if status is not None and event.status != status:
@@ -414,17 +448,19 @@ def batch_update(
                 event.status = Event.Status.SCHEDULED
                 changed = True
             if registrations_open is not None:
-                if event.status == Event.Status.CANCELLED:
+                if event.status == Event.Status.CANCELLED or (
+                    registrations_open and event.is_hidden
+                ):
                     if event.registrations_open:
                         event.registrations_open = False
                         changed = True
                     if not changed:
-                        skipped.append(
-                            {
-                                "event_id": str(event.pk),
-                                "reason": "Date annulée : ouverture impossible.",
-                            }
+                        reason = (
+                            "Date annulée : ouverture impossible."
+                            if event.status == Event.Status.CANCELLED
+                            else "Date masquée : ouverture impossible."
                         )
+                        skipped.append({"event_id": str(event.pk), "reason": reason})
                 elif event.registrations_open != registrations_open:
                     event.registrations_open = registrations_open
                     changed = True

@@ -1,20 +1,23 @@
-<li class="event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}"
+<li class="event-card{% if event.weekend_start %} weekend-start{% endif %}{% if event.payload.status == 'cancelled' %} is-cancelled{% endif %}"
     id="date-{{ event.pk }}"
     data-event-id="{{ event.pk }}"
     data-version="{{ event.version }}"
     data-status="{{ event.status }}"
-    data-open="{{ event.registrations_open|yesno:'true,false' }}"
+    data-open="{{ event.payload.interactive|yesno:'true,false' }}"
     data-past="{{ event.payload.is_past|yesno:'true,false' }}"
     data-archived="{{ period.is_archived|yesno:'true,false' }}">
+  {% with interactive=event.payload.interactive %}
   <div class="event-when">
-    <div class="event-dateline">
-      <span class="date-number" aria-hidden="true">{{ event.date|date:'d' }}</span>
-      <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
-      <span class="date-weekday" aria-hidden="true">{{ event.date|date:'l' }}</span>
+    <div class="event-date-cell">
+      <div class="event-dateline">
+        <span class="date-number" aria-hidden="true">{{ event.date|date:'d' }}</span>
+        <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
+        <span class="date-weekday" aria-hidden="true">{{ event.date|date:'l' }}</span>
+      </div>
+      {% if event.title %}<span class="event-title">{{ event.title }}</span>{% endif %}
+      {% include "planning/_staffing.html" %}
     </div>
-    {% if event.title %}<span class="event-title">{{ event.title }}</span>{% endif %}
-    <span class="event-count muted">{{ event.payload.active_count }}/{{ event.min_organizers }}</span>
-    {% if event.payload.status == 'scheduled' and not period.is_archived and not event.payload.is_past and event.registrations_open %}
+    {% if interactive %}
     <select class="event-type-select"
             data-saved-value="{{ event.game_type_id|default:'' }}"
             aria-label="Type de partie pour le {{ event.date|date:'l j F Y' }}">
@@ -26,32 +29,33 @@
       <option value="{{ event.game_type_id }}" selected disabled>{{ event.type_label }}</option>
       {% endif %}
     </select>
-    {% elif event.type_label %}
-    <span class="tag {{ event.payload.type_class }}">{{ event.type_label }}</span>
+    {% else %}
+    <span class="tag {{ event.payload.type_class }}">{{ event.payload.type_label }}</span>
     {% endif %}
   </div>
-  <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name">{{ reg.organizer_name }}</span>{% endfor %}</p>
-  {% if event.payload.status == 'cancelled' %}
+  <div class="event-organizers">
+    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span>{% if interactive %}<button type="button" class="remove-registration" data-organizer-id="{{ reg.organizer_id }}" data-registration-id="{{ reg.registration_id }}" data-registration-version="{{ reg.version }}" aria-label="Retirer {{ reg.organizer_name }}" title="Retirer">×</button>{% endif %}</span>{% endfor %}</p>
+    {% if event.payload.status == 'cancelled' %}
     <span class="tag tag-danger event-lock-status">Annulée</span>
-  {% elif period.is_archived %}
+    {% elif period.is_archived %}
     <span class="tag tag-muted event-lock-status">Archivée</span>
-  {% elif event.payload.is_past %}
+    {% elif event.payload.is_past %}
     <span class="tag tag-muted event-lock-status">Passée</span>
-  {% elif not event.registrations_open %}
-    <span class="tag tag-muted event-lock-status">Inscriptions fermées</span>
-  {% elif event.capacity and event.payload.active_count >= event.capacity %}
+    {% elif event.capacity and event.payload.active_count >= event.capacity %}
     <span class="tag tag-muted event-lock-status">Complet</span>
-  {% else %}
+    {% else %}
     <form class="name-registration-form" data-event-id="{{ event.pk }}">
-      <input type="text" name="name" placeholder="Votre nom"
+      <input type="text" name="name" placeholder="Nom"
              aria-label="Votre nom pour le {{ event.date|date:'l j F Y' }}"
              required minlength="2" maxlength="40" autocomplete="name">
-      <button type="submit" class="btn btn-primary">Ajouter</button>
+      <button type="submit" aria-label="Ajouter votre nom" title="Ajouter votre nom">+</button>
     </form>
     <p class="form-msg" hidden></p>
-  {% endif %}
-  {% if event.payload.status == 'scheduled' and not period.is_archived and not event.payload.is_past and event.registrations_open %}
+    {% endif %}
+  </div>
+  {% if interactive %}
   <p class="type-msg" hidden></p>
   {% endif %}
+  {% endwith %}
   {% if event.public_note %}<p class="event-note">{{ event.public_note }}</p>{% endif %}
 </li>

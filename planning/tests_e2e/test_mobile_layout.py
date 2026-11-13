@@ -71,9 +71,20 @@ class MobileLayoutTests(unittest.TestCase):
                 page = tracked.page
                 check_no_horizontal_overflow(page)
                 header = page.locator(".header-inner").bounding_box()
-                assert header["height"] <= 84, (width, header)
+                assert header["height"] <= 112, (width, header)
                 assert page.locator(".brand").is_visible()
-                assert page.locator(".top-nav a[href='/bureau/']").is_visible()
+                planning_link = page.locator(".top-nav a[href='/']")
+                bureau_link = page.locator(".top-nav a[href='/bureau/']")
+                assert planning_link.is_visible()
+                assert bureau_link.is_visible()
+                pbox = planning_link.bounding_box()
+                bbox = bureau_link.bounding_box()
+                for box in (pbox, bbox):
+                    assert box["height"] >= 44, (width, box)
+                    assert box["width"] >= 100, (width, box)
+                assert abs(pbox["y"] - bbox["y"]) <= 1, (width, pbox, bbox)
+                assert abs(pbox["width"] - bbox["width"]) <= 2, (width, pbox, bbox)
+                assert planning_link.get_attribute("aria-current") == "page"
                 row = page.locator(f"#date-{event_id}")
                 dateline = row.locator(".event-dateline").bounding_box()
                 select = row.locator(".event-type-select").bounding_box()
@@ -98,7 +109,7 @@ class MobileLayoutTests(unittest.TestCase):
                 expect(names).to_contain_text("Alice")
                 expect(names).to_contain_text("Bob")
                 page.screenshot(
-                    path=str(SCREENSHOT_DIR / f"mobile-friendly-{width}.png"),
+                    path=str(SCREENSHOT_DIR / f"mobile-nav-{width}.png"),
                     full_page=False,
                 )
                 tracked.assert_clean()
@@ -174,6 +185,91 @@ class MobileLayoutTests(unittest.TestCase):
             expect(page.locator(f"#date-{first_id} .event-names")).to_contain_text(
                 "Apres", timeout=8000
             )
+            tracked.assert_clean()
+            browser.close()
+
+    def test_mobile_touch_nav_bureau_and_back(self):
+        with self._server() as server, browser_tests()() as pw:
+            browser = pw.chromium.launch()
+            context = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True)
+            tracked = TrackedPage(context.new_page())
+            page = tracked.page
+            page.goto(server.url + "/")
+            page.wait_for_selector(".event-card", timeout=8000)
+            planning_link = page.locator(".top-nav a[href='/']")
+            bureau_link = page.get_by_role("link", name="Bureau", exact=True)
+            assert planning_link.is_visible() and bureau_link.is_visible()
+            svg = bureau_link.locator("svg").bounding_box()
+            assert svg is not None and svg["width"] == 18 and svg["height"] == 18, svg
+            bstyle = bureau_link.evaluate(
+                """el => { const s = getComputedStyle(el); return {
+                    bg: s.backgroundColor, border: s.borderTopColor,
+                    font: parseFloat(s.fontSize) }; }"""
+            )
+            pfont = planning_link.evaluate("el => parseFloat(getComputedStyle(el).fontSize)")
+            bbox = bureau_link.bounding_box()
+            assert bbox["height"] >= 44 and bbox["width"] >= 100, bbox
+            assert bstyle["bg"] in ("rgba(0, 0, 0, 0)", "transparent"), bstyle
+            assert bstyle["border"] in ("rgba(0, 0, 0, 0)", "transparent"), bstyle
+            assert bstyle["font"] <= 14 and bstyle["font"] < pfont, (
+                bstyle["font"],
+                pfont,
+            )
+            page.screenshot(path=str(SCREENSHOT_DIR / "bureau-lock-390.png"))
+            bureau_link.tap()
+            page.wait_for_url("**/bureau/**")
+            assert "connexion" in page.url or "/bureau/" in page.url
+            assert planning_link.is_visible() and bureau_link.is_visible()
+            assert bureau_link.get_attribute("aria-current") == "page"
+            deco = bureau_link.evaluate("el => getComputedStyle(el).textDecorationLine")
+            assert "underline" in deco, deco
+            planning_link.tap()
+            page.wait_for_url(server.url + "/")
+            assert planning_link.get_attribute("aria-current") == "page"
+            tracked.assert_clean()
+            browser.close()
+            browser, tracked = self._page(pw, server, 1440, 900)
+            page = tracked.page
+            bureau_link = page.get_by_role("link", name="Bureau", exact=True)
+            assert bureau_link.is_visible()
+            assert bureau_link.get_attribute("href") == "/bureau/"
+            svg = bureau_link.locator("svg").bounding_box()
+            assert svg is not None and svg["width"] == 18 and svg["height"] == 18, svg
+            page.screenshot(path=str(SCREENSHOT_DIR / "bureau-lock-1440.png"))
+            tracked.assert_clean()
+            browser.close()
+
+    def test_mobile_deep_link_and_month_scroll_below_header(self):
+        with self._server() as server, browser_tests()() as pw:
+            last_month_id = server.query(
+                "from planning.models import Event\n"
+                "from itertools import groupby\n"
+                "events = list(Event.objects.order_by('date'))\n"
+                "months = [list(g) for _, g in groupby(events, "
+                "key=lambda e: (e.date.year, e.date.month))]\n"
+                "print(months[-1][0].pk)\n"
+            )
+            browser, tracked = self._page(pw, server, 320, 740)
+            page = tracked.page
+            page.goto(server.url + f"/#date-{last_month_id}")
+            page.reload()
+            row = page.locator(f"#date-{last_month_id}")
+            row.wait_for(state="visible", timeout=8000)
+            page.wait_for_timeout(300)
+            header_bottom = page.evaluate(
+                "document.querySelector('.site-header').getBoundingClientRect().bottom"
+            )
+            top = row.bounding_box()["y"]
+            assert top >= header_bottom, (top, header_bottom)
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(100)
+            page.locator("[data-month-step='-1']").click()
+            page.wait_for_timeout(100)
+            nav_top = page.locator(".month-navigation").bounding_box()["y"]
+            header_bottom = page.evaluate(
+                "document.querySelector('.site-header').getBoundingClientRect().bottom"
+            )
+            assert nav_top >= header_bottom, (nav_top, header_bottom)
             tracked.assert_clean()
             browser.close()
 

@@ -136,7 +136,6 @@
       unavailable.hidden = false;
       var reasons = [];
       if (card.dataset.status === "cancelled") reasons.push("date annulée");
-      if (card.dataset.open === "false") reasons.push("inscriptions fermées");
       if (card.dataset.past === "true") reasons.push("date passée");
       if (card.dataset.archived === "true") reasons.push("période archivée");
       unavailable.textContent = "Actions indisponibles : " + reasons.join(", ") + ".";

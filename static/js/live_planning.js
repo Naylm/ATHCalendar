@@ -216,6 +216,9 @@
   function removeRow(li) {
     if (rowUnsafe(li)) {
       li.dataset.removed = "1";
+      li.querySelectorAll("button.remove-registration").forEach(function (b) {
+        b.disabled = true;
+      });
       var form = li.querySelector(".name-registration-form");
       if (form) {
         form.dataset.locked = "1";
@@ -259,7 +262,16 @@
   }
 
   function applyRow(dst, src) {
+    var wasRemoved = dst.dataset.removed === "1";
     delete dst.dataset.removed;
+    if (wasRemoved) {
+      var rmsg = dst.querySelector(".form-msg");
+      if (rmsg && rmsg.textContent === "Date retirée") {
+        rmsg.hidden = true;
+        rmsg.removeAttribute("role");
+        rmsg.textContent = "";
+      }
+    }
     ["version", "status", "open", "past", "archived"].forEach(function (k) {
       if (src.dataset[k] !== undefined) dst.dataset[k] = src.dataset[k];
     });
@@ -268,21 +280,28 @@
     var dwhen = dst.querySelector(":scope > .event-when");
     var swhen = src.querySelector(":scope > .event-when");
     if (dwhen && swhen) {
-      patchInner(dwhen, swhen, ".event-dateline");
-      patchInner(dwhen, swhen, ".event-title");
-      patchInner(dwhen, swhen, ".event-count");
+      var dcell = dwhen.querySelector(":scope > .event-date-cell");
+      var scell = swhen.querySelector(":scope > .event-date-cell");
+      if (dcell && scell) {
+        patchInner(dcell, scell, ".event-dateline");
+        patchInner(dcell, scell, ".event-title");
+        patchInner(dcell, scell, ".event-count");
+      }
       patchTypeControl(dwhen, swhen);
     }
 
-    var dnames = dst.querySelector(":scope > .event-names");
-    var snames = src.querySelector(":scope > .event-names");
-    if (dnames && snames && dnames.innerHTML !== snames.innerHTML) {
-      dnames.innerHTML = snames.innerHTML;
-    } else if (!dnames && snames) {
-      dst.insertBefore(snames.cloneNode(true), dwhen ? dwhen.nextElementSibling : null);
+    var dorg = dst.querySelector(":scope > .event-organizers");
+    var sorg = src.querySelector(":scope > .event-organizers");
+    if (dorg && sorg) {
+      var dnames = dorg.querySelector(":scope > .event-names");
+      var snames = sorg.querySelector(":scope > .event-names");
+      if (dnames && snames && dnames.innerHTML !== snames.innerHTML) {
+        dnames.innerHTML = snames.innerHTML;
+      } else if (!dnames && snames) {
+        dorg.insertBefore(snames.cloneNode(true), dorg.firstElementChild);
+      }
+      patchAction(dorg, sorg);
     }
-
-    patchAction(dst, src);
 
     var dmsg = dst.querySelector(":scope > .type-msg");
     var smsg = src.querySelector(":scope > .type-msg");

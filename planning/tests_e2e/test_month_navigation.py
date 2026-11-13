@@ -48,9 +48,9 @@ class MonthNavigationTests(unittest.TestCase):
             "from planning.models import Event;print(Event.objects.order_by('date').first().pk)"
         )
 
-    def _page(self, pw, server, width=390, touch=True, path="/"):
+    def _page(self, pw, server, width=390, touch=True, path="/", height=844):
         browser = pw.chromium.launch()
-        context = browser.new_context(viewport={"width": width, "height": 844}, has_touch=touch)
+        context = browser.new_context(viewport={"width": width, "height": height}, has_touch=touch)
         tracked = TrackedPage(context.new_page())
         tracked.page.goto(server.url + path)
         tracked.page.wait_for_selector("section.month-group:visible", timeout=8000)
@@ -72,9 +72,7 @@ class MonthNavigationTests(unittest.TestCase):
         for _ in range(12):
             if row.is_visible():
                 return True
-            target_key = row.evaluate(
-                "el => el.closest('.month-group').dataset.month"
-            )
+            target_key = row.evaluate("el => el.closest('.month-group').dataset.month")
             active = self._active_key(page)
             btn = page.locator(
                 "[data-month-step='-1']" if target_key < active else "[data-month-step='1']"
@@ -153,9 +151,9 @@ class MonthNavigationTests(unittest.TestCase):
             browser, context, tracked = self._page(pw, server)
             page = tracked.page
             keys = self._month_keys(page)
-            box = page.locator(".event-dateline").first.bounding_box()
+            box = page.locator(".event-date-cell").first.bounding_box()
             cdp = context.new_cdp_session(page)
-            x0, y0 = box["x"] + box["width"] - 30, box["y"] + 5
+            x0, y0 = box["x"] + box["width"] - 12, box["y"] + 5
 
             def touch(kind, points):
                 cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
@@ -173,7 +171,7 @@ class MonthNavigationTests(unittest.TestCase):
 
     def test_gestures_rejected(self):
         with self._server() as server, browser_tests()() as pw:
-            browser, context, tracked = self._page(pw, server)
+            browser, context, tracked = self._page(pw, server, height=480)
             page = tracked.page
             keys = self._month_keys(page)
             self._pointer_swipe(page, 200, 600, 200, 300)

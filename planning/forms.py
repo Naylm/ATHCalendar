@@ -7,6 +7,7 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import GameType
+from .selectors import BUREAU_MANAGEMENT_FILTERS, BUREAU_STAFFING_FILTERS
 from .services.types import ALLOWED_COLORS
 
 DATE_INPUT = "%Y-%m-%d"
@@ -157,6 +158,83 @@ class BureauRegistrationForm(forms.Form):
     organizer = forms.UUIDField(label="Pseudo")
     state = forms.ChoiceField(choices=[("active", "Inscrire"), ("withdrawn", "Retirer")])
     note = forms.CharField(label="Note", max_length=500, required=False)
+
+
+class PeriodFinalizeForm(forms.Form):
+    keep_event_ids = forms.MultipleChoiceField(required=False)
+    expected_revision = forms.IntegerField(min_value=0)
+    confirm_close = forms.BooleanField(required=True, label="Confirmer la clôture")
+
+    def __init__(self, *args, candidates=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["keep_event_ids"].choices = [
+            (str(event.pk), str(event.pk)) for event in candidates or []
+        ]
+
+
+class DateCleanupFilterForm(forms.Form):
+    staffing = forms.ChoiceField(label="Inscriptions", choices=BUREAU_STAFFING_FILTERS)
+
+
+class DateCleanupForm(forms.Form):
+    event_ids = forms.MultipleChoiceField(required=True)
+    expected_revision = forms.IntegerField(min_value=0)
+    staffing = forms.ChoiceField(choices=BUREAU_STAFFING_FILTERS, widget=forms.HiddenInput)
+    confirm_hide = forms.BooleanField(required=True, label="Confirmer le masquage")
+
+    def __init__(self, *args, candidates=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["event_ids"].choices = [
+            (str(event.pk), str(event.pk)) for event in candidates or []
+        ]
+
+
+class PeriodManagementFilterForm(forms.Form):
+    staffing = forms.ChoiceField(label="Afficher", choices=BUREAU_MANAGEMENT_FILTERS)
+
+
+class DateVisibilityForm(forms.Form):
+    event_id = forms.UUIDField()
+    visible = forms.BooleanField(required=False)
+    expected_revision = forms.IntegerField(min_value=0)
+    expected_version = forms.IntegerField(min_value=1)
+    staffing = forms.ChoiceField(
+        choices=BUREAU_MANAGEMENT_FILTERS, required=False, widget=forms.HiddenInput
+    )
+
+
+class PeriodSelectionForm(forms.Form):
+    event_ids = forms.MultipleChoiceField(required=True)
+    selection_action = forms.ChoiceField(
+        required=True,
+        choices=[
+            ("", "Action…"),
+            ("hide", "Masquer les dates"),
+            ("unhide", "Réafficher les dates"),
+        ],
+    )
+    staffing = forms.ChoiceField(choices=BUREAU_MANAGEMENT_FILTERS, widget=forms.HiddenInput)
+    expected_revision = forms.IntegerField(min_value=0)
+    confirm = forms.BooleanField(required=True)
+
+    def __init__(self, *args, candidates=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["event_ids"].choices = [
+            (str(event.pk), str(event.pk)) for event in candidates or []
+        ]
+
+    def clean(self):
+        cleaned = super().clean()
+        staffing = cleaned.get("staffing")
+        action = cleaned.get("selection_action")
+        if staffing is not None and action is not None:
+            if staffing == "hidden" and action != "unhide":
+                raise DjangoValidationError(
+                    "Seule la réaffichage est possible sur les dates masquées."
+                )
+            if staffing != "hidden" and action != "hide":
+                raise DjangoValidationError("Seul le masquage est possible sur ces dates.")
+        return cleaned
 
 
 class EventsBatchForm(forms.Form):

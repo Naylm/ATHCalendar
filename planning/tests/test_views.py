@@ -42,9 +42,18 @@ class ViewSmokeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "S1 test")
         self.assertContains(response, "name-registration-form")
-        self.assertContains(response, 'placeholder="Votre nom"')
+        self.assertContains(response, 'placeholder="Nom"')
         self.assertContains(response, "event-type-select")
         self.assertContains(response, '<option value="">À définir</option>')
+
+    def test_topnav_bureau_lock_link(self):
+        response = Client().get("/")
+        self.assertContains(response, 'href="/bureau/"')
+        self.assertContains(response, 'class="bureau-link"')
+        self.assertContains(response, 'aria-label="Bureau"')
+        self.assertContains(response, 'title="Accès Bureau"')
+        self.assertContains(response, 'focusable="false"')
+        self.assertNotContains(response, ">Bureau</a>")
 
     def test_noindex_header(self):
         response = Client().get("/")
@@ -81,12 +90,12 @@ class ViewSmokeTests(TestCase):
     def test_locked_event_has_no_form(self):
         self._active_period()
         for event in Event.objects.all():
-            events.set_registrations_open(event.pk, actor=Actor.bureau(), is_open=False)
+            events.cancel_event(event.pk, actor=Actor.bureau())
         response = Client().get("/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "name-registration-form")
         self.assertNotContains(response, "event-type-select")
-        self.assertContains(response, "Inscriptions fermées")
+        self.assertContains(response, "Annulée")
 
     def test_full_event_shows_complet_no_form(self):
         self._active_period()
@@ -128,8 +137,43 @@ class ViewSmokeTests(TestCase):
         )
         response = Client().get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '<span class="organizer-name">Al&lt;i&gt;</span>')
+        self.assertContains(response, '<span class="organizer-label">Al&lt;i&gt;</span>')
         self.assertNotContains(response, "Al<i>")
+
+    def test_staffing_dot_counts_and_remove_buttons(self):
+        self._active_period()
+        all_events = list(Event.objects.order_by("date"))
+        alice = organizers.get_or_create_organizer("Al<i>")
+        bob = organizers.get_or_create_organizer("Bob")
+        needs = all_events[1]
+        ready = all_events[2]
+        registrations.set_registration(needs.pk, alice.pk, "active", actor=Actor.public(alice))
+        for organizer in (alice, bob):
+            registrations.set_registration(
+                ready.pk, organizer.pk, "active", actor=Actor.public(organizer)
+            )
+        locked = all_events[3]
+        events.cancel_event(locked.pk, actor=Actor.bureau())
+        response = Client().get("/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("dot-none", content)
+        self.assertIn("Aucun inscrit", content)
+        self.assertIn("dot-needs_more", content)
+        self.assertIn("À compléter", content)
+        self.assertIn("dot-sufficient", content)
+        self.assertIn("Prêt", content)
+        self.assertIn("0/2", content)
+        self.assertIn("1/2", content)
+        self.assertIn("2/2", content)
+        self.assertIn("Al&lt;i&gt;", content)
+        self.assertNotIn("Al<i>", content)
+        reg = needs.registrations.get(organizer=alice)
+        self.assertIn(f'class="remove-registration" data-organizer-id="{alice.pk}"', content)
+        self.assertIn(f'data-registration-version="{reg.version}"', content)
+        self.assertIn("Retirer", content)
+        locked_row = content.split(f'id="date-{locked.pk}"', 1)[1].split("</li>", 1)[0]
+        self.assertNotIn("remove-registration", locked_row)
 
     def test_month_grouping(self):
         today = date.today()
@@ -262,5 +306,5 @@ class ViewSmokeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            '<a href="/bureau/" aria-current="page">Bureau</a>',
+            '<a href="/bureau/" aria-current="page" class="bureau-link" aria-label="Bureau"',
         )

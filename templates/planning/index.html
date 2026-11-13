@@ -26,6 +26,11 @@
   <h2 id="month-title" aria-live="polite" aria-atomic="true">{% if months %}{{ months.0.date|date:'F Y' }}{% endif %}</h2>
   <button type="button" data-month-step="1" aria-label="Mois suivant">›</button>
 </nav>
+<div class="planning-columns" aria-hidden="true">
+  <span>Date</span>
+  <span>Organisateurs</span>
+  <span>Type</span>
+</div>
 <div id="event-list"
      data-period-id="{{ period.pk }}"
      data-revision="{{ period.revision }}"
@@ -41,4 +46,5 @@
 <script src="{% static 'js/live_planning.js' %}" defer></script>
 <script src="{% static 'js/signup.js' %}" defer></script>
 <script src="{% static 'js/day_types.js' %}" defer></script>
+<script src="{% static 'js/withdrawal.js' %}" defer></script>
 {% endblock %}

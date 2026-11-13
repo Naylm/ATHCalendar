@@ -68,6 +68,16 @@ urlpatterns = [
         name="bureau_period_detail",
     ),
     path(
+        "bureau/periodes/<uuid:period_id>/cloture/",
+        views_bureau.period_finalize,
+        name="bureau_period_finalize",
+    ),
+    path(
+        "bureau/periodes/<uuid:period_id>/nettoyage/",
+        views_bureau.period_cleanup,
+        name="bureau_period_cleanup",
+    ),
+    path(
         "bureau/periodes/<uuid:period_id>/dates/nouvelle/",
         views_bureau.event_create,
         name="bureau_event_create",

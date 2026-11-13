@@ -83,6 +83,7 @@ class Event(models.Model):
     origin = models.CharField(max_length=10, choices=Origin, default=Origin.MANUAL)
     status = models.CharField(max_length=10, choices=Status, default=Status.SCHEDULED)
     registrations_open = models.BooleanField(default=True)
+    is_hidden = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

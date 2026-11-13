@@ -23,6 +23,7 @@ SAFE_FIELDS = {
         "origin",
         "status",
         "registrations_open",
+        "is_hidden",
         "version",
     ],
     "Organizer": ["id", "name", "normalized_key", "is_active", "merged_into_id"],

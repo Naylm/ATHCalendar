@@ -25,6 +25,7 @@ from .validators import (
 )
 
 WEEKEND_DAYS = (5, 6)
+MAX_CLEANUP = 200
 
 
 def paris_today():
@@ -359,9 +360,12 @@ def set_period_registrations(period_id, *, actor: Actor, is_open):
     with write_transaction():
         period = Period.objects.get(pk=period.pk)
         _require_not_archived(period)
-        changed = list(
-            period.events.filter(status=Event.Status.SCHEDULED).exclude(registrations_open=is_open)
+        changed_qs = period.events.filter(status=Event.Status.SCHEDULED).exclude(
+            registrations_open=is_open
         )
+        if is_open:
+            changed_qs = changed_qs.exclude(is_hidden=True)
+        changed = list(changed_qs)
         for event in changed:
             event.registrations_open = is_open
             event.version += 1
@@ -375,6 +379,294 @@ def set_period_registrations(period_id, *, actor: Actor, is_open):
             after={"changed_events": [str(e.pk) for e in changed]},
         )
         return period
+
+
+def finalize_period(period_id, *, actor: Actor, keep_event_ids, expected_revision):
+    period = get_period(period_id)
+    _require_bureau(actor)
+    if isinstance(expected_revision, bool):
+        raise ValidationFailed(
+            "Révision invalide.", fields={"expected_revision": "Entier attendu."}
+        )
+    expected_revision = require_int(
+        expected_revision, "Révision", minimum=0, field="expected_revision"
+    )
+    if not isinstance(keep_event_ids, (list, tuple, set)):
+        raise ValidationFailed(
+            "Sélection de dates invalide.", fields={"keep_event_ids": "Liste attendue."}
+        )
+    keep = {parse_uuid(value, "Date") for value in keep_event_ids}
+    with write_transaction():
+        period = Period.objects.get(pk=period.pk)
+        _require_not_archived(period)
+        if period.revision != expected_revision:
+            raise VersionConflict(
+                "Le planning a été modifié entre-temps ; veuillez recharger.",
+                fields={"revision": str(period.revision)},
+            )
+        future_events = list(period.events.filter(date__gte=paris_today()).order_by("date"))
+        candidates = {event.pk for event in future_events if event.status == Event.Status.SCHEDULED}
+        invalid = keep - candidates
+        if invalid:
+            raise ValidationFailed(
+                "La sélection contient des dates invalides ; rien n'a été modifié.",
+                fields={"keep_event_ids": sorted(str(pk) for pk in invalid)},
+            )
+        changed = []
+        for event in future_events:
+            new_hidden = event.pk not in keep
+            if event.is_hidden == new_hidden and not event.registrations_open:
+                continue
+            before = audit.snapshot(event)
+            event.registrations_open = False
+            event.is_hidden = new_hidden
+            event.version += 1
+            event.save(update_fields=["registrations_open", "is_hidden", "version", "updated_at"])
+            changed.append(event)
+            audit.log(
+                actor=actor,
+                action="event.finalize",
+                target=event,
+                before=before,
+                after=audit.snapshot(event),
+            )
+        if changed:
+            bump_revision(period)
+            audit.log(
+                actor=actor,
+                action="period.finalize",
+                target=period,
+                after={
+                    "keep_event_ids": sorted(str(pk) for pk in keep),
+                    "hidden_event_ids": sorted(
+                        str(event.pk) for event in future_events if event.is_hidden
+                    ),
+                },
+            )
+        return period
+
+
+def hide_selected_dates(period_id, *, actor: Actor, event_ids, staffing_filter, expected_revision):
+    from planning import selectors
+
+    period = get_period(period_id)
+    _require_bureau(actor)
+    if staffing_filter not in selectors.BUREAU_STAFFING_VALUES:
+        raise ValidationFailed(
+            "Filtre d'inscriptions invalide.", fields={"staffing": "Filtre inconnu."}
+        )
+    if isinstance(expected_revision, bool):
+        raise ValidationFailed(
+            "Révision invalide.", fields={"expected_revision": "Entier attendu."}
+        )
+    expected_revision = require_int(
+        expected_revision, "Révision", minimum=0, field="expected_revision"
+    )
+    if not isinstance(event_ids, (list, tuple, set)):
+        raise ValidationFailed(
+            "Sélection de dates invalide.", fields={"event_ids": "Liste attendue."}
+        )
+    ids = list(dict.fromkeys(parse_uuid(value, "Date") for value in event_ids))
+    if not ids:
+        raise ValidationFailed("Aucune date sélectionnée.", fields={"event_ids": "Vide."})
+    if len(ids) > MAX_CLEANUP:
+        raise ValidationFailed(
+            "200 dates maximum par opération groupée.",
+            fields={"event_ids": str(len(ids))},
+        )
+    with write_transaction():
+        period = Period.objects.get(pk=period.pk)
+        _require_not_archived(period)
+        if period.revision != expected_revision:
+            raise VersionConflict(
+                "Le planning a été modifié entre-temps ; veuillez recharger.",
+                fields={"revision": str(period.revision)},
+            )
+        candidates = {
+            event.pk for event in selectors.bureau_cleanup_events(period, staffing_filter)
+        }
+        invalid = set(ids) - candidates
+        if invalid:
+            raise ValidationFailed(
+                "La sélection contient des dates non éligibles ; rien n'a été modifié.",
+                fields={"event_ids": sorted(str(pk) for pk in invalid)},
+            )
+        changed = list(Event.objects.filter(pk__in=ids).order_by("date"))
+        for event in changed:
+            before = audit.snapshot(event)
+            event.is_hidden = True
+            event.registrations_open = False
+            event.version += 1
+            event.save(update_fields=["is_hidden", "registrations_open", "version", "updated_at"])
+            audit.log(
+                actor=actor,
+                action="event.hide",
+                target=event,
+                before=before,
+                after=audit.snapshot(event),
+            )
+        if changed:
+            bump_revision(period)
+            audit.log(
+                actor=actor,
+                action="period.cleanup",
+                target=period,
+                after={
+                    "staffing": staffing_filter,
+                    "hidden_event_ids": sorted(str(event.pk) for event in changed),
+                },
+            )
+        return changed
+
+
+def close_selected_dates(period_id, *, actor: Actor, event_ids, staffing_filter, expected_revision):
+    from planning import selectors
+    from planning.services import events as event_services
+
+    period = get_period(period_id)
+    _require_bureau(actor)
+    if staffing_filter not in selectors.BUREAU_STAFFING_VALUES:
+        raise ValidationFailed(
+            "Filtre d'inscriptions invalide.", fields={"staffing": "Filtre inconnu."}
+        )
+    if isinstance(expected_revision, bool):
+        raise ValidationFailed(
+            "Révision invalide.", fields={"expected_revision": "Entier attendu."}
+        )
+    expected_revision = require_int(
+        expected_revision, "Révision", minimum=0, field="expected_revision"
+    )
+    if not isinstance(event_ids, (list, tuple, set)):
+        raise ValidationFailed(
+            "Sélection de dates invalide.", fields={"event_ids": "Liste attendue."}
+        )
+    ids = list(dict.fromkeys(parse_uuid(value, "Date") for value in event_ids))
+    if not ids:
+        raise ValidationFailed("Aucune date sélectionnée.", fields={"event_ids": "Vide."})
+    if len(ids) > MAX_CLEANUP:
+        raise ValidationFailed(
+            "200 dates maximum par opération groupée.",
+            fields={"event_ids": str(len(ids))},
+        )
+    with write_transaction():
+        period = Period.objects.get(pk=period.pk)
+        _require_not_archived(period)
+        if period.revision != expected_revision:
+            raise VersionConflict(
+                "Le planning a été modifié entre-temps ; veuillez recharger.",
+                fields={"revision": str(period.revision)},
+            )
+        candidates = {
+            event.pk for event in selectors.bureau_cleanup_events(period, staffing_filter)
+        }
+        invalid = set(ids) - candidates
+        if invalid:
+            raise ValidationFailed(
+                "La sélection contient des dates non éligibles ; rien n'a été modifié.",
+                fields={"event_ids": sorted(str(pk) for pk in invalid)},
+            )
+        versions = {str(event.pk): event.version for event in Event.objects.filter(pk__in=ids)}
+        result = event_services.batch_update(
+            ids,
+            actor=actor,
+            registrations_open=False,
+            expected_versions=versions,
+        )
+        return result["updated"]
+
+
+def unhide_selected_dates(period_id, *, actor: Actor, event_ids, expected_revision):
+    period = get_period(period_id)
+    _require_bureau(actor)
+    if isinstance(expected_revision, bool):
+        raise ValidationFailed(
+            "Révision invalide.", fields={"expected_revision": "Entier attendu."}
+        )
+    expected_revision = require_int(
+        expected_revision, "Révision", minimum=0, field="expected_revision"
+    )
+    if not isinstance(event_ids, (list, tuple, set)):
+        raise ValidationFailed(
+            "Sélection de dates invalide.", fields={"event_ids": "Liste attendue."}
+        )
+    ids = list(dict.fromkeys(parse_uuid(value, "Date") for value in event_ids))
+    if not ids:
+        raise ValidationFailed("Aucune date sélectionnée.", fields={"event_ids": "Vide."})
+    if len(ids) > MAX_CLEANUP:
+        raise ValidationFailed(
+            "200 dates maximum par opération groupée.",
+            fields={"event_ids": str(len(ids))},
+        )
+    with write_transaction():
+        period = Period.objects.get(pk=period.pk)
+        _require_not_archived(period)
+        if period.revision != expected_revision:
+            raise VersionConflict(
+                "Le planning a été modifié entre-temps ; veuillez recharger.",
+                fields={"revision": str(period.revision)},
+            )
+        changed = list(
+            Event.objects.filter(pk__in=ids, period=period, is_hidden=True).order_by("date")
+        )
+        found = {event.pk for event in changed}
+        invalid = set(ids) - found
+        if invalid:
+            raise ValidationFailed(
+                "La sélection contient des dates non éligibles ; rien n'a été modifié.",
+                fields={"event_ids": sorted(str(pk) for pk in invalid)},
+            )
+        for event in changed:
+            before = audit.snapshot(event)
+            event.is_hidden = False
+            event.registrations_open = False
+            event.version += 1
+            event.save(update_fields=["is_hidden", "registrations_open", "version", "updated_at"])
+            audit.log(
+                actor=actor,
+                action="event.unhide",
+                target=event,
+                before=before,
+                after=audit.snapshot(event),
+            )
+        bump_revision(period)
+        return changed
+
+
+def set_date_visibility(
+    period_id, event_id, *, actor: Actor, is_visible, expected_revision, expected_version
+):
+    from planning.services import events as event_services
+
+    period = get_period(period_id)
+    _require_bureau(actor)
+    is_visible = require_bool(is_visible, "Visibilité", field="visible")
+    if isinstance(expected_revision, bool):
+        raise ValidationFailed(
+            "Révision invalide.", fields={"expected_revision": "Entier attendu."}
+        )
+    expected_revision = require_int(
+        expected_revision, "Révision", minimum=0, field="expected_revision"
+    )
+    if isinstance(expected_version, bool):
+        raise ValidationFailed("Version invalide.", fields={"expected_version": "Entier attendu."})
+    expected_version = require_int(expected_version, "Version", minimum=1, field="expected_version")
+    event_pk = parse_uuid(event_id, "Date")
+    with write_transaction():
+        period = Period.objects.get(pk=period.pk)
+        _require_not_archived(period)
+        if period.revision != expected_revision:
+            raise VersionConflict(
+                "Le planning a été modifié entre-temps ; veuillez recharger.",
+                fields={"revision": str(period.revision)},
+            )
+        if not Event.objects.filter(pk=event_pk, period=period).exists():
+            raise NotFound("Date introuvable.")
+        return event_services.set_event_hidden(
+            event_pk,
+            actor=actor,
+            is_hidden=not is_visible,
+            expected_version=expected_version,
+        )
 
 
 def set_default_min_organizers(value, *, actor: Actor):

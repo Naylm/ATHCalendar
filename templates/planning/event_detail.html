@@ -7,7 +7,7 @@
          data-event-id="{{ event.pk }}"
          data-version="{{ event.version }}"
          data-status="{{ event.status }}"
-         data-open="{{ event.registrations_open|yesno:'true,false' }}"
+         data-open="{{ payload.interactive|yesno:'true,false' }}"
          data-past="{{ payload.is_past|yesno:'true,false' }}"
          data-archived="{{ payload.is_archived|yesno:'true,false' }}"
          data-period-id="{{ period.pk }}"
@@ -18,7 +18,6 @@
   {% if event.public_note %}<p>{{ event.public_note }}</p>{% endif %}
   <div class="tags">
     {% if payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
-    {% if not event.registrations_open %}<span class="tag tag-muted">Inscriptions fermées</span>{% endif %}
     {% if payload.is_past %}<span class="tag tag-muted">Date passée</span>{% endif %}
     {% if payload.is_archived %}<span class="tag tag-muted">Période archivée</span>{% endif %}
   </div>

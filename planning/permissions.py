@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.views.decorators.cache import never_cache
 
 from .errors import RateLimited, ServiceError, ValidationFailed
 from .middleware import source_key
@@ -14,7 +15,12 @@ from .services.organizers import get_organizer
 
 
 def is_bureau(user):
-    return bool(user and user.is_authenticated and user.groups.filter(name="Bureau").exists())
+    return bool(
+        user
+        and user.is_authenticated
+        and user.is_active
+        and user.groups.filter(name="Bureau").exists()
+    )
 
 
 def actor_for_request(request, organizer=None):
@@ -39,7 +45,7 @@ def bureau_page(view):
             return redirect("/bureau/connexion/")
         return view(request, *args, **kwargs)
 
-    return wrapper
+    return never_cache(wrapper)
 
 
 def bureau_api(view):

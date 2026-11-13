@@ -1,7 +1,49 @@
 {% extends "bureau/base_bureau.html" %}
 {% block bureau_content %}
+<p class="muted period-back"><a class="muted" href="/bureau/">← Périodes</a></p>
 <h1>{{ period.label }} {% if period.is_archived %}<span class="tag tag-muted">Archivée</span>{% endif %}</h1>
-<div class="card">
+<form method="get" data-auto-filter class="inline-actions">
+  {{ filter_form.staffing.errors }}
+  <label for="id_staffing">Afficher</label>
+  {{ filter_form.staffing }}
+  <button type="submit" class="btn" data-filter-submit>Filtrer</button>
+</form>
+{% if selection_form %}{{ selection_form.non_field_errors }}{{ selection_form.event_ids.errors }}{{ selection_form.selection_action.errors }}{{ selection_form.expected_revision.errors }}{{ selection_form.staffing.errors }}{{ selection_form.confirm.errors }}{% endif %}
+<p class="muted visibility-legend">Cochée : visible sur le planning.</p>
+<ul class="event-list">
+  {% for event in events %}
+  <li class="card event-card bureau-event {% if event.is_hidden %}is-hidden{% endif %}{% if event.payload.status == 'cancelled' %} is-cancelled{% endif %}">
+    <form method="post" class="visibility-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="visibility">
+      <input type="hidden" name="event_id" value="{{ event.pk }}">
+      <input type="hidden" name="staffing" value="{{ staffing }}">
+      <input type="hidden" name="expected_revision" value="{{ expected_revision }}">
+      <input type="hidden" name="expected_version" value="{{ event.version }}">
+      <div class="event-head">
+        <label class="visibility-toggle"><input type="checkbox" name="visible" value="on" aria-label="Afficher le {{ event.date|date:'l j F Y' }} sur le planning public"{% if not event.is_hidden %} checked{% endif %}{% if period.is_archived %} disabled{% endif %}> <span class="event-date">{{ event.date|date:'l j F Y' }}</span></label>
+        <span class="tag">{{ event.payload.type_label }}</span>
+        {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
+        <span class="tag tag-muted visibility-status"{% if not event.is_hidden %} hidden{% endif %}>Masquée</span>
+      </div>
+      <p class="muted visibility-msg" role="status" hidden></p>
+      <noscript><button type="submit" class="btn">Enregistrer</button></noscript>
+    </form>
+    <p class="muted">{% include "planning/_staffing.html" %}{% if event.capacity %} · cap {{ event.capacity }}{% endif %}</p>
+    {% if event.payload.organizers %}
+    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span></span>{% endfor %}</p>
+    {% endif %}
+    <a href="/bureau/dates/{{ event.pk }}/">Modifier</a>
+  </li>
+  {% empty %}
+  <li class="card muted">Aucune date correspondante.</li>
+  {% endfor %}
+</ul>
+<details class="card">
+  <summary>Options</summary>
+  <p class="inline-actions">
+    <a class="btn" href="/bureau/exports/periode/{{ period.pk }}.csv">Export CSV</a>
+  </p>
   <form method="post" class="inline-actions">
     {% csrf_token %}
     <button type="submit" name="action" value="set_active" class="btn" {% if period.is_archived %}disabled{% endif %}>Définir active</button>
@@ -9,12 +51,10 @@
     <button type="submit" name="action" value="reopen" class="btn">Rouvrir la période</button>
     {% else %}
     <button type="submit" name="action" value="archive" class="btn btn-danger" data-confirm="Archiver cette période ? Elle deviendra en lecture seule.">Archiver</button>
-    <button type="submit" name="action" value="close_all" class="btn" data-confirm="Fermer les inscriptions de toutes les dates planifiées ?">Fermer les inscriptions</button>
-    <button type="submit" name="action" value="open_all" class="btn">Ouvrir les inscriptions</button>
     {% endif %}
   </form>
   {% if missing_dates %}
-  <details class="card">
+  <details>
     <summary>Compléter les week-ends manquants ({{ missing_dates|length }})</summary>
     <form method="post">
       {% csrf_token %}
@@ -28,6 +68,14 @@
   </details>
   {% endif %}
   {% if not period.is_archived %}
+  <details>
+    <summary>Ajouter une date en semaine</summary>
+    <form method="post" action="/bureau/periodes/{{ period.pk }}/dates/nouvelle/">
+      {% csrf_token %}
+      {{ event_form.as_p }}
+      <button type="submit" class="btn btn-primary">Ajouter</button>
+    </form>
+  </details>
   <form method="post" class="period-edit">
     {% csrf_token %}
     {{ form.non_field_errors }}
@@ -43,62 +91,5 @@
   {% else %}
   <p class="muted">Période archivée — lecture seule. Seule la réouverture permet des corrections.</p>
   {% endif %}
-</div>
-
-<h2>Dates ({{ events|length }})</h2>
-{% if not period.is_archived %}
-<details class="card">
-  <summary>Ajouter une date en semaine</summary>
-  <form method="post" action="/bureau/periodes/{{ period.pk }}/dates/nouvelle/">
-    {% csrf_token %}
-    {{ event_form.as_p }}
-    <button type="submit" class="btn btn-primary">Ajouter</button>
-  </form>
 </details>
-{% endif %}
-<form method="post" action="/bureau/periodes/{{ period.pk }}/dates/groupe/" id="batch-form">
-  {% csrf_token %}
-  {{ batch_form.versions_json }}
-  <ul class="event-list">
-    {% for event in events %}
-    <li class="card event-card {% if event.payload.status == 'cancelled' %}is-cancelled{% endif %}">
-      <div class="event-head">
-        {% if not period.is_archived %}<input type="checkbox" name="event_ids" value="{{ event.pk }}" data-version="{{ event.version }}">{% endif %}
-        <span class="event-date">{{ event.date|date:'l j F Y' }}</span>
-        <span class="tag">{{ event.payload.type_label }}</span>
-        {% if event.payload.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
-        {% if not event.registrations_open %}<span class="tag tag-muted">Fermée</span>{% endif %}
-      </div>
-      <p class="muted">{{ event.payload.active_count }} organisateur(s) · min {{ event.min_organizers }}{% if event.capacity %} · cap {{ event.capacity }}{% endif %}</p>
-      <a class="btn" href="/bureau/dates/{{ event.pk }}/">Modifier</a>
-    </li>
-    {% endfor %}
-  </ul>
-  {% if not period.is_archived %}
-  <fieldset class="card">
-    <legend>Actions groupées sur les dates cochées</legend>
-    <p>
-      <label>Type {{ batch_form.game_type }}</label>
-      <label>Minimum <input type="number" name="min_organizers" min="1"></label>
-      <label>Capacité
-        <select name="capacity_mode">
-          <option value="unchanged">Ne pas changer</option>
-          <option value="unlimited">Illimitée</option>
-          <option value="value">Valeur</option>
-        </select>
-        <input type="number" name="capacity_value" min="1" aria-label="Valeur de capacité">
-      </label>
-    </p>
-    <p>
-      <button type="submit" class="btn btn-primary" formaction="/bureau/periodes/{{ period.pk }}/dates/groupe/">Appliquer les paramètres</button>
-    </p>
-    <p>
-      <button type="submit" name="registrations" value="open" class="btn">Ouvrir</button>
-      <button type="submit" name="registrations" value="close" class="btn" data-confirm="Fermer les inscriptions des dates cochées ?">Fermer</button>
-      <button type="submit" name="status" value="cancel" class="btn btn-danger" data-confirm="Annuler les dates cochées ?">Annuler les dates</button>
-      <button type="submit" name="status" value="restore" class="btn" data-confirm="Restaurer les dates cochées (elles resteront fermées) ?">Restaurer</button>
-    </p>
-  </fieldset>
-  {% endif %}
-</form>
 {% endblock %}

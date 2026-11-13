@@ -1,11 +1,6 @@
 {% extends "bureau/base_bureau.html" %}
 {% block bureau_content %}
 <h1>Nouvelle période</h1>
-{% if messages %}
-<ul class="messages" role="alert">
-  {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
-</ul>
-{% endif %}
 <div class="filters">
   <a class="chip" href="?semestre=1">Semestre 1 (année courante)</a>
   <a class="chip" href="?semestre=2">Semestre 2 (année courante)</a>

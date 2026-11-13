@@ -275,5 +275,11 @@ def planning_context(period, filtre=None):
         "period": period,
         "months": months,
         "game_types": GameType.objects.filter(is_active=True).order_by("name"),
+        "described_game_types": GameType.objects.filter(
+            Q(is_active=True)
+            | Q(pk__in={event.game_type_id for event in events if event.game_type_id})
+        )
+        .exclude(description="")
+        .order_by("name"),
         "filtre": filtre,
     }

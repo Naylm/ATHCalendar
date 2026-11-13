@@ -17,6 +17,9 @@
     <input type="hidden" name="filtre" value="{{ filtre }}">
   </form>
   {% endif %}
+  {% if described_game_types %}
+    {% include "planning/_type_guide.html" %}
+  {% endif %}
 </div>
 {% endif %}
 
@@ -42,6 +45,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
+<script src="{% static 'js/type_guide.js' %}" defer></script>
 <script src="{% static 'js/month_navigation.js' %}" defer></script>
 <script src="{% static 'js/live_planning.js' %}" defer></script>
 <script src="{% static 'js/signup.js' %}" defer></script>

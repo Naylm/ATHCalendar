@@ -205,6 +205,9 @@ class PeriodFormFlowTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, "Prévisualisez les week-ends avant de créer le planning.", count=1
+        )
         from planning.models import Period
 
         self.assertFalse(Period.objects.filter(label="Semaine seule").exists())

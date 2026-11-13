@@ -1,0 +1,11 @@
+<details class="type-guide" id="type-guide">
+  <summary><span class="type-guide-icon" aria-hidden="true">i</span>Types de parties</summary>
+  <div class="type-guide-panel">
+    <dl>
+      {% for t in described_game_types %}
+      <dt>{{ t.name }}</dt>
+      <dd>{{ t.description }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+</details>

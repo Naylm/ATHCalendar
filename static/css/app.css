@@ -3,6 +3,7 @@
   --surface: #302f27;
   --surface-alt: #2a2921;
   --ink: #e8e4d8;
+  --organizer-text: #e8c27c;
   --muted: #b0aa97;
   --accent: #857650;
   --accent-text: #b7a477;
@@ -108,6 +109,58 @@ h1, h2, h3 {
 
 .page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
 
+.type-guide { position: relative; flex: none; margin-left: auto; }
+.type-guide summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.type-guide summary::-webkit-details-marker { display: none; }
+.type-guide summary:hover, .type-guide[open] summary { color: var(--accent-text); }
+.type-guide-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.type-guide-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  width: min(26rem, calc(100vw - 32px));
+  max-height: min(60vh, 28rem);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+.type-guide-panel dl { margin: 0; }
+.type-guide-panel dt { color: var(--accent-text); font-size: 0.875rem; font-weight: 700; }
+.type-guide-panel dd {
+  margin: 4px 0 14px;
+  color: var(--ink);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.type-guide-panel dd:last-child { margin-bottom: 0; }
+
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -169,11 +222,12 @@ body[data-page="planning"] .event-date {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-alt);
-  color: var(--ink);
+  color: var(--organizer-text);
   font-weight: 700;
   font-size: 1rem;
   overflow-wrap: anywhere;
 }
+.organizer-list strong { color: var(--organizer-text); }
 .event-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .event-date { font-weight: 600; text-transform: capitalize; }
 .event-title { margin: 6px 0; }
@@ -527,8 +581,8 @@ body[data-page="planning"] .event-date-cell {
   gap: 2px;
 }
 body[data-page="planning"] .event-dateline { display: flex; align-items: baseline; gap: 5px; }
-body[data-page="planning"] .date-number { font-size: 1rem; }
-body[data-page="planning"] .date-weekday { font-size: 0.75rem; }
+body[data-page="planning"] .date-number { font-size: 1.25rem; }
+body[data-page="planning"] .date-weekday { font-size: 0.875rem; }
 body[data-page="planning"] .event-count { font-size: 0.75rem; }
 body[data-page="planning"] .staffing-label {
   position: absolute;
@@ -574,7 +628,9 @@ body[data-page="planning"] .organizer-name {
   background: transparent;
   padding: 0;
   gap: 2px;
-  font-size: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 body[data-page="planning"] .name-registration-form {
   display: flex;
@@ -728,7 +784,7 @@ body[data-page="planning"] .event-card.weekend-start {
   .event-card > .tag { grid-column: 1; grid-row: auto; justify-self: start; }
   .form-msg, .type-msg, .event-note { grid-column: 1; }
   input, select, textarea { font-size: 16px; }
-  body[data-page="planning"] { --planning-columns: 54px minmax(0, 1fr) 96px; }
+  body[data-page="planning"] { --planning-columns: 72px minmax(0, 1fr) 96px; }
   body[data-page="planning"] .planning-columns,
   body[data-page="planning"] .event-card {
     grid-template-columns: var(--planning-columns);
@@ -740,7 +796,7 @@ body[data-page="planning"] .event-card.weekend-start {
     align-items: flex-start;
     gap: 0;
   }
-  body[data-page="planning"] .date-weekday { font-size: 0.7rem; }
+  body[data-page="planning"] .date-weekday { font-size: 0.875rem; }
   body[data-page="planning"] .event-type-select {
     min-height: 44px;
     padding: 6px 4px;
@@ -775,7 +831,7 @@ body[data-page="planning"] .event-card.weekend-start {
     gap: 5px;
   }
   body[data-page="planning"] .event-card:has(.organizer-name) .date-weekday {
-    font-size: 0.8rem;
+    font-size: 0.875rem;
   }
   body[data-page="planning"] .event-card:has(.organizer-name) .event-title {
     flex-basis: 100%;

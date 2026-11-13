@@ -547,6 +547,18 @@ def event_edit(request, event_id):
                     )
                     return redirect(f"/bureau/dates/{event.pk}/")
                 messages.error(request, "Formulaire invalide.")
+            elif action == "availability":
+                availability_form = forms.AvailabilityForm(request.POST)
+                if not availability_form.is_valid():
+                    raise ValidationFailed("Disponibilité ou version invalide.")
+                event_services.set_event_availability(
+                    event.pk,
+                    actor=_bureau_actor(request),
+                    **availability_form.cleaned_data,
+                )
+                messages.success(request, "Disponibilité de la date mise à jour.")
+                if request.POST.get("return_to_period") == "1":
+                    return redirect(f"/bureau/periodes/{event.period_id}/")
             elif action == "cancel":
                 event_services.cancel_event(event.pk, actor=_bureau_actor(request))
             elif action == "restore":
@@ -699,7 +711,7 @@ def types_list(request):
         {
             "types": GameType.objects.order_by("name"),
             "form": forms.GameTypeForm(),
-            "palette": type_services.ALLOWED_COLORS,
+            "palette": type_services.COLOR_PALETTE,
         },
     )
 
@@ -806,6 +818,7 @@ def export_period_csv(request, period_id):
             "pseudo",
             "état",
             "note",
+            "disponibilité",
         ]
     )
     for event in selectors.period_events(period):
@@ -823,6 +836,7 @@ def export_period_csv(request, period_id):
                     "",
                     "",
                     "",
+                    event.availability,
                 ]
             )
         for reg in regs:
@@ -838,6 +852,7 @@ def export_period_csv(request, period_id):
                     _csv_safe(reg.organizer_name),
                     reg.state,
                     _csv_safe(reg.note),
+                    event.availability,
                 ]
             )
     return response
@@ -902,6 +917,7 @@ def export_business_json(request):
                 "origin": e.origin,
                 "status": e.status,
                 "registrations_open": e.registrations_open,
+                "availability": e.availability,
                 "is_hidden": e.is_hidden,
                 "version": e.version,
             }

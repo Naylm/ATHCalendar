@@ -1,8 +1,12 @@
 import os
 import secrets
+import tomllib
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+APP_VERSION = tomllib.loads((BASE_DIR / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+    "version"
+]
 
 DATA_DIR = Path(os.environ.get("DJANGO_DATA_DIR", BASE_DIR / "data"))
 

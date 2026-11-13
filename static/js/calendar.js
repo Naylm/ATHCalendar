@@ -43,6 +43,8 @@
 
   function statusLabel(ev) {
     if (ev.status === "cancelled") return "annulée";
+    if (ev.availability === "unavailable") return "indisponible";
+    if (ev.availability === "full") return "complète";
     if (ev.fill === "needs_more") return "renfort nécessaire";
     if (ev.fill === "sufficient") return "équipe suffisante";
     return "aucun organisateur";
@@ -119,7 +121,8 @@
         cell.appendChild(count);
         var flag = document.createElement("span");
         flag.className = "flag";
-        flag.textContent = ev.status === "cancelled" ? "Annulée" : "";
+        flag.textContent = ev.status === "cancelled" ? "Annulée" :
+          ev.availability !== "available" ? ev.availability_label : "";
         cell.appendChild(flag);
         cell.setAttribute("aria-label",
           label + " — " + ev.active_count + " organisateur(s), " +

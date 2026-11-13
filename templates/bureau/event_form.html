@@ -2,6 +2,8 @@
 {% block bureau_content %}
 <h1>{{ event.date|date:'l j F Y' }} — {{ period_label|default:event.period.label }} {% if event.is_hidden %}<span class="tag tag-muted">Masquée</span>{% endif %}</h1>
 <div class="card">
+  {% include "bureau/_availability.html" %}
+  <p class="muted">Indisponible et Complète verrouillent les modifications des bénévoles, sans retirer les inscrits. Choisissez Ouverte pour rouvrir.</p>
   {% if event.period.is_archived %}
   <p class="muted">Période archivée — cette date est en lecture seule. Rouvrez la période pour la modifier.</p>
   {% else %}

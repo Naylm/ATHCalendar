@@ -14,6 +14,13 @@ ALLOWED_COLORS = (
     "#60766b",
     "#8a5b55",
 )
+COLOR_PALETTE = tuple(
+    {"value": color, "label": label, "css_class": f"type-c{index}"}
+    for index, (color, label) in enumerate(
+        zip(ALLOWED_COLORS, ("Olive", "Sable", "Ardoise", "Sauge", "Terre"), strict=True),
+        start=1,
+    )
+)
 
 
 def get_type(type_id) -> GameType:

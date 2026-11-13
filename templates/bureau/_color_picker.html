@@ -1,0 +1,12 @@
+<fieldset class="color-picker">
+  <legend>Couleur</legend>
+  <div class="color-options">
+    {% for c in palette %}
+    <label class="color-choice" for="color-{{ color_prefix }}-{{ forloop.counter }}">
+      <input type="radio" id="color-{{ color_prefix }}-{{ forloop.counter }}" name="color" value="{{ c.value }}"{% if selected_color == c.value or not selected_color and forloop.first %} checked{% endif %} required>
+      <span class="color-swatch {{ c.css_class }}" aria-hidden="true"></span>
+      <span>{{ c.label }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</fieldset>

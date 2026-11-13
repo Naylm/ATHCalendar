@@ -161,6 +161,7 @@ def filtered_events(period, filtre=None, *, today=None):
         return (
             qs.filter(
                 status=Event.Status.SCHEDULED,
+                availability=Event.Availability.AVAILABLE,
                 date__gte=today,
                 active_registrations__lt=F("min_organizers"),
             ),
@@ -177,6 +178,7 @@ def public_event_interactive(event, *, today=None):
         and event.date >= today
         and not is_archived
         and not event.is_hidden
+        and event.availability == Event.Availability.AVAILABLE
     )
 
 
@@ -213,13 +215,15 @@ def event_payload(event, today=None):
         "date": event.date.isoformat(),
         "weekday": event.date.weekday(),
         "type_label": event.type_label or "À définir",
-        "type_class": event.game_type.color_class if event.game_type_id else "type-c1",
+        "type_class": event.game_type.color_class if event.game_type_id else "type-unset",
         "game_type_id": str(event.game_type_id) if event.game_type_id else None,
         "title": event.title,
         "public_note": event.public_note,
         "min_organizers": event.min_organizers,
         "capacity": event.capacity,
         "status": event.status,
+        "availability": event.availability,
+        "availability_label": event.get_availability_display(),
         "registrations_open": interactive,
         "is_hidden": event.is_hidden,
         "version": event.version,

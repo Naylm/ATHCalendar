@@ -1,0 +1,13 @@
+<form method="post" action="/bureau/dates/{{ event.pk }}/" class="availability-form">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="availability">
+  <input type="hidden" name="expected_version" value="{{ event.version }}">
+  {% if return_to_period %}<input type="hidden" name="return_to_period" value="1">{% endif %}
+  <label for="availability-{{ event.pk }}">Inscriptions</label>
+  <select id="availability-{{ event.pk }}" name="availability"{% if event.period.is_archived %} disabled{% endif %}>
+    {% for value, label in event_availability_choices %}
+    <option value="{{ value }}"{% if event.availability == value %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn"{% if event.period.is_archived %} disabled{% endif %}>Enregistrer</button>
+</form>

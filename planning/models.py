@@ -63,6 +63,11 @@ class GameType(models.Model):
 
 
 class Event(models.Model):
+    class Availability(models.TextChoices):
+        AVAILABLE = "available", "Ouverte"
+        UNAVAILABLE = "unavailable", "Indisponible"
+        FULL = "full", "Complète"
+
     class Origin(models.TextChoices):
         GENERATED = "generated"
         MANUAL = "manual"
@@ -83,6 +88,9 @@ class Event(models.Model):
     origin = models.CharField(max_length=10, choices=Origin, default=Origin.MANUAL)
     status = models.CharField(max_length=10, choices=Status, default=Status.SCHEDULED)
     registrations_open = models.BooleanField(default=True)
+    availability = models.CharField(
+        max_length=12, choices=Availability, default=Availability.AVAILABLE
+    )
     is_hidden = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -91,6 +99,10 @@ class Event(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["period", "date"], name="event_unique_period_date"),
+            models.CheckConstraint(
+                condition=models.Q(availability__in=["available", "unavailable", "full"]),
+                name="event_availability_valid",
+            ),
             models.CheckConstraint(
                 condition=models.Q(min_organizers__gte=1), name="event_min_gte_1"
             ),

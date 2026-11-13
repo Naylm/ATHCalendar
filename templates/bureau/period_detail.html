@@ -34,6 +34,7 @@
     <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span></span>{% endfor %}</p>
     {% endif %}
     <a href="/bureau/dates/{{ event.pk }}/">Modifier</a>
+    {% include "bureau/_availability.html" with return_to_period=True %}
   </li>
   {% empty %}
   <li class="card muted">Aucune date correspondante.</li>
@@ -42,6 +43,8 @@
 <details class="card">
   <summary>Options</summary>
   <p class="inline-actions">
+    <a class="btn" href="/bureau/exports/periode/{{ period.pk }}.xlsx">Tableau Excel</a>
+    <a class="btn" href="/bureau/exports/periode/{{ period.pk }}/imprimer/" target="_blank" rel="noopener">Tableau imprimable</a>
     <a class="btn" href="/bureau/exports/periode/{{ period.pk }}.csv">Export CSV</a>
   </p>
   <form method="post" class="inline-actions">

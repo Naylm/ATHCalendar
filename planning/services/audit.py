@@ -23,6 +23,7 @@ SAFE_FIELDS = {
         "origin",
         "status",
         "registrations_open",
+        "availability",
         "is_hidden",
         "version",
     ],

@@ -44,7 +44,9 @@ class ViewSmokeTests(TestCase):
         self.assertContains(response, "name-registration-form")
         self.assertContains(response, 'placeholder="Nom"')
         self.assertContains(response, "event-type-select")
-        self.assertContains(response, '<option value="">À définir</option>')
+        self.assertRegex(
+            response.content.decode(), r'<option\b[^>]*value=""[^>]*>À définir</option>'
+        )
 
     def test_topnav_bureau_lock_link(self):
         response = Client().get("/")
@@ -113,7 +115,7 @@ class ViewSmokeTests(TestCase):
         response = Client().get("/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "name-registration-form")
-        self.assertContains(response, "Complet")
+        self.assertContains(response, "Complète")
 
     def test_cancelled_event_has_no_form(self):
         self._active_period()
@@ -191,8 +193,8 @@ class ViewSmokeTests(TestCase):
         self.assertEqual(
             response.content.count(b'<section class="month-group" data-month'), expected
         )
-        self.assertNotContains(response, "<details")
-        self.assertNotContains(response, "<summary")
+        self.assertNotRegex(response.content.decode(), r"<details\b[^>]*\bdata-month=")
+        self.assertNotRegex(response.content.decode(), r"<summary\b[^>]*\bmonth-")
         self.assertEqual(response.content.count(b'aria-labelledby="month-title">'), 1)
         self.assertEqual(
             response.content.count(b'aria-labelledby="month-title" hidden>'),

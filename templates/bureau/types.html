@@ -5,7 +5,15 @@
   <summary>Ajouter un type</summary>
   <form method="post">
     {% csrf_token %}
-    {{ form.as_p }}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      {% if field.name == 'color' %}
+        {{ field.errors }}
+        {% include "bureau/_color_picker.html" with selected_color=field.value color_prefix="new" %}
+      {% else %}
+        <p>{{ field.label_tag }} {{ field }} {{ field.errors }}</p>
+      {% endif %}
+    {% endfor %}
     <button type="submit" name="action" value="create" class="btn">Ajouter</button>
   </form>
 </details>
@@ -22,9 +30,7 @@
       {% csrf_token %}
       <input type="hidden" name="type" value="{{ t.pk }}">
       <input name="name" value="{{ t.name }}" maxlength="120" aria-label="Nom">
-      <select name="color" aria-label="Couleur">
-        {% for c in palette %}<option value="{{ c }}" {% if t.color == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
-      </select>
+      {% include "bureau/_color_picker.html" with selected_color=t.color color_prefix=t.pk %}
       <input name="description" value="{{ t.description }}" aria-label="Description">
       <button type="submit" name="action" value="edit" class="btn">Modifier</button>
       {% if t.is_active %}

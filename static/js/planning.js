@@ -138,6 +138,8 @@
       if (card.dataset.status === "cancelled") reasons.push("date annulée");
       if (card.dataset.past === "true") reasons.push("date passée");
       if (card.dataset.archived === "true") reasons.push("période archivée");
+      if (card.dataset.availability === "unavailable") reasons.push("date indisponible");
+      if (card.dataset.availability === "full") reasons.push("date complète");
       unavailable.textContent = "Actions indisponibles : " + reasons.join(", ") + ".";
     }
 

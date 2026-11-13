@@ -28,6 +28,7 @@
   <main class="content">
     {% block content %}{% endblock %}
   </main>
+  <footer class="site-footer">{{ ath_site_name }} · Version {{ app_version }}</footer>
   {% if request.resolver_match.url_name == 'event_detail' or request.resolver_match.url_name == 'my_registrations' %}
   <div class="modal" id="pseudo-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pseudo-modal-title">
     <div class="modal-card">

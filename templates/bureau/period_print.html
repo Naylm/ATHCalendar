@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tableau — {{ table.label }}{% endblock %}
+{% block content %}
+<div class="actions no-print">
+  <a class="btn" href="/bureau/periodes/{{ table.period_id }}/">Retour au Bureau</a>
+  <a class="btn" href="/bureau/exports/periode/{{ table.period_id }}.xlsx">Télécharger Excel</a>
+  <button class="btn btn-primary" type="button" data-print>Imprimer / Enregistrer en PDF</button>
+</div>
+<section class="report-page">
+  <h1>{{ table.label }}</h1>
+  <p>Du {{ table.start_date|date:'j F Y' }} au {{ table.end_date|date:'j F Y' }}{% if table.archived %} · Période archivée{% endif %}</p>
+  <p class="muted">Toutes les dates de la période. Les dates masquées sont identifiées ; les désinscriptions restent dans l’onglet Inscriptions du fichier Excel.</p>
+  <div class="table-scroll">
+    <table class="report-table">
+      <caption>Planning des organisateurs — {{ table.label }}</caption>
+      <thead><tr><th scope="col">Date</th><th scope="col">Type</th><th scope="col">État</th><th scope="col">Inscriptions</th><th scope="col">Organisateurs</th><th scope="col">Note</th></tr></thead>
+      <tbody>
+        {% for row in table.planning %}
+        <tr>
+          <th scope="row">{{ row.date|date:'D d/m/Y' }}{% if row.title %}<br>{{ row.title }}{% endif %}</th>
+          <td>{{ row.type_label }}</td>
+          <td>{{ row.status }}{% if row.hidden %}<br><strong>Masquée</strong>{% endif %}</td>
+          <td>{{ row.availability }}<br>{{ row.active_count }} inscrit(s) · minimum {{ row.minimum }}{% if row.capacity %}<br>Capacité {{ row.capacity }}{% endif %}</td>
+          <td>{{ row.organizer_names|join:", "|default:"—" }}</td>
+          <td>{{ row.public_note|default:"—" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="6">Aucune date dans cette période.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/reports.js' %}" defer></script>{% endblock %}

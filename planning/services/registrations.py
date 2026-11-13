@@ -27,6 +27,12 @@ def _public_write_allowed(event, today):
         raise ClosedConflict("Cette date a été annulée par le Bureau.")
     if event.date < today:
         raise ClosedConflict("Cette date est passée ; modification impossible.")
+    if event.availability != Event.Availability.AVAILABLE:
+        raise ClosedConflict(
+            "Cette date est complète."
+            if event.availability == Event.Availability.FULL
+            else "Cette date est indisponible."
+        )
 
 
 def _check_capacity(event, exclude_registration_id=None):

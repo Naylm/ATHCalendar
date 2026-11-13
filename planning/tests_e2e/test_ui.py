@@ -155,6 +155,13 @@ def expect_ok_response(page, method, fragment):
     )
 
 
+def set_stored_pseudo(page, organizer_id, name):
+    page.evaluate(
+        "pseudo => localStorage.setItem('ath_pseudo', JSON.stringify(pseudo))",
+        {"id": organizer_id, "name": name},
+    )
+
+
 def check_no_horizontal_overflow(page):
     overflow = page.evaluate(
         "document.documentElement.scrollWidth > document.documentElement.clientWidth"
@@ -271,9 +278,7 @@ class PublicUiTests(unittest.TestCase):
             with browser_tests()() as pw:
                 browser, tracked = self._page(pw)
                 page = tracked.page
-                page.evaluate(
-                    "window.ath.pseudo.set({id: '" + organizer_id + "', name: 'Volontaire E2E'})"
-                )
+                set_stored_pseudo(page, organizer_id, "Volontaire E2E")
                 page.goto(self.server.url + "/dates/" + event_id + "/")
                 with expect_ok_response(page, "PUT", "/registration/"):
                     page.click("#join-btn")
@@ -328,9 +333,7 @@ class PublicUiTests(unittest.TestCase):
             with browser_tests()() as pw:
                 browser, tracked = self._page(pw)
                 page = tracked.page
-                page.evaluate(
-                    "window.ath.pseudo.set({id: '" + organizer_id + "', name: 'Volontaire E2E'})"
-                )
+                set_stored_pseudo(page, organizer_id, "Volontaire E2E")
                 page.goto(self.server.url + "/dates/" + event_id + "/")
                 with expect_ok_response(page, "PUT", "/registration/"):
                     page.evaluate(
@@ -378,7 +381,7 @@ class PublicUiTests(unittest.TestCase):
             with browser_tests()() as pw:
                 browser, tracked = self._page(pw)
                 page = tracked.page
-                page.evaluate("window.ath.pseudo.set({id: '" + id_b + "', name: 'Autre Pseudo'})")
+                set_stored_pseudo(page, id_b, "Autre Pseudo")
                 page.goto(self.server.url + "/dates/" + event_id + "/?organizer=" + id_a)
                 page.wait_for_timeout(800)
                 with expect_ok_response(page, "PUT", "/registration/"):
@@ -420,7 +423,7 @@ registrations.set_registration(
             with browser_tests()() as pw:
                 browser, tracked = self._page(pw)
                 page = tracked.page
-                page.evaluate("window.ath.pseudo.set({id: '" + id_a + "', name: 'Volontaire E2E'})")
+                set_stored_pseudo(page, id_a, "Volontaire E2E")
                 page.goto(self.server.url + "/dates/" + event_id + "/?organizer=" + id_a)
                 page.wait_for_selector("#registration-form:not([hidden])")
                 page.evaluate("window.ath.pseudo.set({id: '" + id_b + "', name: 'Autre Pseudo'})")
@@ -590,6 +593,7 @@ registrations.set_registration(
                 weekday = start + timedelta(days=(0 - start.weekday()) % 7 or 7)
                 while weekday.weekday() >= 5 or not (start <= weekday <= end):
                     weekday += timedelta(days=1)
+                page.get_by_text("Options", exact=True).click()
                 page.click("summary:text('Ajouter une date en semaine')")
                 page.fill("input[name=date]", weekday.isoformat())
                 page.select_option("select[name=game_type]", label="Flex")
@@ -609,13 +613,15 @@ registrations.set_registration(
                     lambda d: d.accept() if dialog_state["accept"] else d.dismiss(),
                 )
                 page.goto(self.server.url + f"/bureau/dates/{event_pk}/")
-                page.click("button[value=close]")
+                availability = page.locator(".availability-form")
+                availability.locator("select").select_option("unavailable")
+                availability.get_by_role("button", name="Enregistrer", exact=True).click()
                 page.wait_for_url(f"**/bureau/dates/{event_pk}/")
                 closed = self.server.query(
                     "from planning.models import Event;"
-                    f"print(Event.objects.get(pk='{event_pk}').registrations_open)"
+                    f"print(Event.objects.get(pk='{event_pk}').availability)"
                 )
-                assert closed == "False", closed
+                assert closed == "unavailable", closed
                 public = self.server.url + f"/dates/{event_pk}/"
                 page.goto(public)
                 join_hidden = page.eval_on_selector("#join-btn", "el => el.hidden")
@@ -644,11 +650,12 @@ registrations.set_registration(
                 state = self.server.query(
                     "from planning.models import Event;"
                     f"e=Event.objects.get(pk='{event_pk}');"
-                    "print(e.status, e.registrations_open)"
+                    "print(e.status, e.availability)"
                 )
-                assert "scheduled False" in state, state
+                assert "scheduled unavailable" in state, state
 
                 page.goto(self.server.url + f"/bureau/periodes/{period_id}/")
+                page.get_by_text("Options", exact=True).click()
                 page.click("button[value=archive]")
                 page.wait_for_url(f"**/bureau/periodes/{period_id}/")
                 archived = self.server.query(
@@ -656,6 +663,7 @@ registrations.set_registration(
                     f"print(Period.objects.get(pk='{period_id}').is_archived)"
                 )
                 assert archived == "True", archived
+                page.get_by_text("Options", exact=True).click()
                 period_edit = page.query_selector(".period-edit")
                 assert period_edit is None or not period_edit.is_visible()
                 page.screenshot(path=str(SCREENSHOT_DIR / "bureau-archived.png"), full_page=False)
@@ -691,17 +699,16 @@ registrations.set_registration(
             with browser_tests()() as pw:
                 browser, tracked = self._page(pw)
                 page = tracked.page
-                page.evaluate(
-                    "window.ath.pseudo.set({id: '" + organizer_id + "', name: 'Volontaire E2E'})"
-                )
+                set_stored_pseudo(page, organizer_id, "Volontaire E2E")
                 page.goto(self.server.url + "/dates/" + event_id + "/")
                 page.wait_for_selector("#registration-form:not([hidden])")
                 page.fill("#note-input", "brouillon non sauvegardé")
                 self.server.seed(
                     "from planning.services import events;"
                     "from planning.services.actors import Actor;"
-                    f"events.set_registrations_open('{event_id}',"
-                    " actor=Actor.bureau(), is_open=False)"
+                    f"events.set_event_availability('{event_id}',"
+                    " actor=Actor.bureau(), availability='unavailable',"
+                    f" expected_version=events.get_event('{event_id}').version)"
                 )
                 page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
                 page.wait_for_selector("#refresh-note:not([hidden])", timeout=8000)

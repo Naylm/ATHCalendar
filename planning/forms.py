@@ -6,9 +6,9 @@ from django import forms
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from .models import GameType
+from .models import Event, GameType
 from .selectors import BUREAU_MANAGEMENT_FILTERS, BUREAU_STAFFING_FILTERS
-from .services.types import ALLOWED_COLORS
+from .services.types import ALLOWED_COLORS, COLOR_PALETTE
 
 DATE_INPUT = "%Y-%m-%d"
 
@@ -17,7 +17,7 @@ def _date_widget():
     return forms.DateInput(attrs={"type": "date"}, format=DATE_INPUT)
 
 
-COLOR_CHOICES = [(color, color) for color in ALLOWED_COLORS]
+COLOR_CHOICES = [(color["value"], color["label"]) for color in COLOR_PALETTE]
 
 
 class LoginForm(forms.Form):
@@ -99,6 +99,11 @@ class EventForm(forms.Form):
     expected_version = forms.IntegerField(min_value=0, required=False)
 
 
+class AvailabilityForm(forms.Form):
+    availability = forms.ChoiceField(choices=Event.Availability.choices)
+    expected_version = forms.IntegerField(min_value=1)
+
+
 class OrganizerNameForm(forms.Form):
     name = forms.CharField(label="Pseudo", min_length=2, max_length=40)
 
@@ -117,7 +122,7 @@ class GameTypeForm(forms.Form):
     description = forms.CharField(
         label="Description", required=False, widget=forms.Textarea(attrs={"rows": 3})
     )
-    color = forms.ChoiceField(label="Couleur", choices=COLOR_CHOICES)
+    color = forms.ChoiceField(label="Couleur", choices=COLOR_CHOICES, initial=ALLOWED_COLORS[0])
 
     def clean_color(self):
         value = self.cleaned_data["color"].lower()

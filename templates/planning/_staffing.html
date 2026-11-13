@@ -1,1 +1,5 @@
+{% if event.payload.availability != 'available' %}
+<span class="event-count muted">{{ event.payload.active_count }} inscrit{{ event.payload.active_count|pluralize }}</span>
+{% else %}
 <span class="event-count muted"><span class="staffing staffing-{{ event.payload.fill }}" title="{% if event.payload.fill == 'none' %}Aucun inscrit{% elif event.payload.fill == 'needs_more' %}À compléter{% else %}Prêt{% endif %}"><span class="status-dot dot-{{ event.payload.fill }}" aria-hidden="true"></span>{{ event.payload.active_count }}/{{ event.min_organizers }}<span class="staffing-label">&nbsp;·&nbsp;{% if event.payload.fill == 'none' %}Aucun inscrit{% elif event.payload.fill == 'needs_more' %}À compléter{% else %}Prêt{% endif %}</span></span></span>
+{% endif %}

@@ -34,22 +34,33 @@
     );
   }
 
+  function paintType(select, colorClass) {
+    ["type-c1", "type-c2", "type-c3", "type-c4", "type-c5", "type-unset"]
+      .forEach(function (name) { select.classList.remove(name); });
+    var option = select.options[select.selectedIndex];
+    select.classList.add(colorClass ||
+      (option && option.dataset.typeClass) || "type-unset");
+  }
+
   async function saveType(select) {
     var row = select.closest(".event-card");
     if (!row) return;
     var value = select.value || null;
+    paintType(select);
     if (value === (select.dataset.savedValue || null)) {
       select.value = select.dataset.savedValue || "";
+      paintType(select);
       return;
     }
     if (!window.ath.live.begin(row)) {
       select.value = select.dataset.savedValue || "";
+      paintType(select);
       return;
     }
     select.disabled = true;
     clearMsg(row);
     try {
-      await window.ath.apiFetch(
+      var data = await window.ath.apiFetch(
         "/api/events/" + row.dataset.eventId + "/type/",
         {
           method: "PUT",
@@ -59,10 +70,12 @@
           }),
         }
       );
+      paintType(select, data.event.type_class);
       select.dataset.savedValue = select.value;
       await window.ath.live.end(row, true);
     } catch (err) {
       select.value = select.dataset.savedValue || "";
+      paintType(select);
       showError(row, errorText(err));
       if (window.ath.toast) window.ath.toast(errorText(err), true);
       await window.ath.live.end(row, false);

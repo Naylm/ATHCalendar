@@ -3,7 +3,7 @@
   <div class="type-guide-panel">
     <dl>
       {% for t in described_game_types %}
-      <dt>{{ t.name }}</dt>
+      <dt><span class="tag {{ t.color_class }}">{{ t.name }}</span></dt>
       <dd>{{ t.description }}</dd>
       {% endfor %}
     </dl>

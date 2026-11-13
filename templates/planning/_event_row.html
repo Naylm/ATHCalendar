@@ -18,15 +18,15 @@
       {% include "planning/_staffing.html" %}
     </div>
     {% if interactive %}
-    <select class="event-type-select"
+    <select class="event-type-select {{ event.payload.type_class }}"
             data-saved-value="{{ event.game_type_id|default:'' }}"
             aria-label="Type de partie pour le {{ event.date|date:'l j F Y' }}">
-      <option value="">À définir</option>
+      <option value="" data-type-class="type-unset">À définir</option>
       {% for t in game_types %}
-      <option value="{{ t.pk }}" {% if t.pk == event.game_type_id %}selected{% endif %}>{{ t.name }}</option>
+      <option value="{{ t.pk }}" data-type-class="{{ t.color_class }}" {% if t.pk == event.game_type_id %}selected{% endif %}>{{ t.name }}</option>
       {% endfor %}
       {% if event.game_type_id and not event.game_type.is_active %}
-      <option value="{{ event.game_type_id }}" selected disabled>{{ event.type_label }}</option>
+      <option value="{{ event.game_type_id }}" data-type-class="{{ event.payload.type_class }}" selected disabled>{{ event.type_label }}</option>
       {% endif %}
     </select>
     {% else %}
@@ -41,8 +41,10 @@
     <span class="tag tag-muted event-lock-status">Archivée</span>
     {% elif event.payload.is_past %}
     <span class="tag tag-muted event-lock-status">Passée</span>
+    {% elif event.payload.availability != 'available' %}
+    <span class="tag tag-muted event-lock-status">{{ event.payload.availability_label }}</span>
     {% elif event.capacity and event.payload.active_count >= event.capacity %}
-    <span class="tag tag-muted event-lock-status">Complet</span>
+    <span class="tag tag-muted event-lock-status">Complète</span>
     {% else %}
     <form class="name-registration-form" data-event-id="{{ event.pk }}">
       <input type="text" name="name" placeholder="Nom"

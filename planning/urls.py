@@ -1,9 +1,10 @@
 from django.urls import path
 
-from . import api_public, views_bureau, views_public
+from . import api_public, views_bureau, views_public, views_reports
 
 urlpatterns = [
     path("", views_public.index, name="index"),
+    path("recapitulatif/", views_reports.recap, name="public_recap"),
     path("dates/<uuid:event_id>/", views_public.event_detail, name="event_detail"),
     path(
         "mes-inscriptions/",
@@ -104,6 +105,16 @@ urlpatterns = [
         "bureau/exports/donnees.json",
         views_bureau.export_business_json,
         name="bureau_export_json",
+    ),
+    path(
+        "bureau/exports/periode/<uuid:period_id>.xlsx",
+        views_reports.export_xlsx,
+        name="bureau_export_xlsx",
+    ),
+    path(
+        "bureau/exports/periode/<uuid:period_id>/imprimer/",
+        views_reports.printable,
+        name="bureau_export_print",
     ),
     path(
         "bureau/mot-de-passe/",

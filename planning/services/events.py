@@ -227,6 +227,8 @@ def set_public_game_type(event_id, *, actor: Actor, game_type_id, expected_versi
             raise ClosedConflict("Cette date a été annulée par le Bureau.")
         if event.date < paris_today():
             raise ClosedConflict("Cette date est passée ; modification impossible.")
+        if event.availability != Event.Availability.AVAILABLE:
+            raise ClosedConflict("Cette date est verrouillée par le Bureau.")
         _check_version(event, expected_version)
         game_type = _resolve_type(game_type_id)
         requested = game_type.pk if game_type is not None else None
@@ -268,6 +270,35 @@ def restore_event(event_id, *, actor: Actor, expected_version=None):
         registrations_open=False,
         action="event.restore",
     )
+
+
+def set_event_availability(event_id, *, actor: Actor, availability, expected_version):
+    _require_bureau(actor)
+    if availability not in Event.Availability.values:
+        raise ValidationFailed(
+            "Disponibilité invalide.", fields={"availability": "Choix invalide."}
+        )
+    expected_version = require_int(expected_version, "Version", minimum=1, field="expected_version")
+    event = get_event(event_id)
+    with write_transaction():
+        event = Event.objects.select_related("period").get(pk=event.pk)
+        _require_not_archived(event.period)
+        _check_version(event, expected_version)
+        if event.availability == availability:
+            return event
+        before = audit.snapshot(event)
+        event.availability = availability
+        event.version += 1
+        event.save(update_fields=["availability", "version", "updated_at"])
+        bump_revision(event.period)
+        audit.log(
+            actor=actor,
+            action="event.availability",
+            target=event,
+            before=before,
+            after=audit.snapshot(event),
+        )
+        return event
 
 
 def set_registrations_open(event_id, *, actor: Actor, is_open, expected_version=None):

@@ -23,7 +23,7 @@ from .services import registrations as registration_services
 from .services.actors import Actor
 from .services.validators import require_int, require_str
 
-PRIVILEGED_KEYS = {"actor", "actor_type", "role", "is_bureau", "bureau", "user"}
+PRIVILEGED_KEYS = {"actor", "actor_type", "role", "is_bureau", "bureau", "user", "availability"}
 
 
 def _reject_privileged(body):

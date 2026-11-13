@@ -119,6 +119,31 @@ Compose est fixe.
 
 ## État de l'implémentation
 
+Version applicative : `project.version` dans `pyproject.toml`, source unique
+du pied de page. Versions publiées par tags Git annotés `vX.Y.Z` et journal
+`CHANGELOG.md` ; procédure de mise à jour dans `RELEASES.md`.
+
+- `Event.availability` : `available`, `unavailable`, `full`, choix manuel du
+  Bureau. Les deux états fermés interdisent les mutations publiques mais
+  conservent les inscriptions. Ne pas confondre ce champ avec l'ancien
+  booléen `registrations_open`, volontairement ignoré par le parcours public.
+- Le récapitulatif public présente seulement les inscriptions actives sur
+  dates non masquées d'une période, archives incluses ; les annulations sont
+  signalées et les alias fusionnés ne doublent pas une personne sur une date.
+- Les données des rapports sont centralisées dans `planning/reports.py`.
+  Les exports Excel/imprimables du Bureau conservent toutes les dates et
+  l'historique ; les données utilisateur Excel restent du texte, jamais des
+  formules ni des hyperliens implicites.
+- Les nouvelles couleurs restent dans `ALLOWED_COLORS` et les classes
+  `type-c1..c5`, sans CSS inline.
+
+Tests ciblés de la version 0.2.0 :
+
+```text
+.venv/Scripts/python.exe manage.py test planning.tests.test_manual_availability planning.tests.test_reports planning.tests.test_table_exports
+.venv/Scripts/python.exe -m unittest planning.tests_e2e.test_release020
+```
+
 Application complète : planning public (liste, calendrier, filtres),
 inscriptions trust-based par pseudo, « Mes inscriptions », espace Bureau
 (périodes, dates, groupes, pseudos, types, journal, exports CSV/JSON),

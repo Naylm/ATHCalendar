@@ -305,13 +305,29 @@ body[data-page="planning"] .event-date {
   flex: 1;
   min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  line-height: 1.25;
   font-size: 1rem;
-  padding: 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 2px 4px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
   color: inherit;
   resize: vertical;
+}
+.event-note-form textarea:focus {
+  border-bottom-color: var(--accent-text);
+  outline: none;
+}
+.event-note-form textarea:not(:placeholder-shown) {
+  min-height: 44px;
+}
+.event-note-form textarea:focus,
+.event-note-form[data-dirty="1"] textarea {
+  min-height: 64px;
 }
 .event-note-form .note-save,
 .event-note-form .note-cancel {

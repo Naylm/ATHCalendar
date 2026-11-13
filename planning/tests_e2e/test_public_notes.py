@@ -38,8 +38,22 @@ class PublicNotesE2ETests(unittest.TestCase):
                     ta = form.locator("textarea")
                     save = form.locator(".note-save")
                     cancel = form.locator(".note-cancel")
+                    # Vide et inactif : champ d'une ligne, boutons masqués,
+                    # exemple en espace réservé jamais prérempli.
+                    expect(ta).to_have_value("")
+                    assert ta.evaluate("el => el.defaultValue") == ""
+                    expect(ta).to_have_attribute(
+                        "placeholder", "Ex. : besoin d’un/une expérimenté(e)"
+                    )
+                    expect(save).to_be_hidden()
                     expect(save).to_be_disabled()
+                    expect(cancel).to_be_hidden()
+                    page.locator("h1").click()  # blur avant mesure
+                    assert ta.bounding_box()["height"] <= 30
+                    check_no_horizontal_overflow(page)
+                    page.screenshot(path=str(SCREENSHOT_DIR / f"v025-planning-empty-{width}.png"))
                     ta.fill(NOTE_EXAMPLE)
+                    expect(save).to_be_visible()
                     expect(save).to_be_enabled()
                     expect(cancel).to_be_visible()
                     with page.expect_response(
@@ -48,10 +62,12 @@ class PublicNotesE2ETests(unittest.TestCase):
                         )
                     ):
                         save.click()
+                    expect(save).to_be_hidden()
                     expect(save).to_be_disabled()
                     expect(cancel).to_be_hidden()
                     check_no_horizontal_overflow(page)
-                    page.screenshot(path=str(SCREENSHOT_DIR / f"v024-planning-note-{width}.png"))
+                    page.locator("h1").click()  # blur avant capture
+                    page.screenshot(path=str(SCREENSHOT_DIR / f"v025-planning-note-{width}.png"))
                     page.reload()
                     expect(page.locator(".event-note-form textarea").first).to_have_value(
                         NOTE_EXAMPLE

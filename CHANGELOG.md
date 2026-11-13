@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.2.5
+
+- Note de date plus compacte : champ vide réduit à une ligne discrète,
+  boutons OK/Annuler affichés uniquement pendant une modification,
+  exemple explicite en espace réservé (les notes enregistrées restent
+  préremplies).
+
 ## 0.2.4
 
 - Note commune par date, éditable directement sur le planning public

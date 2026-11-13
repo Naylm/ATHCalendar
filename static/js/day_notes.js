@@ -46,6 +46,7 @@
     var off = locked(form);
     area(form).readOnly = off;
     saveButton(form).disabled = off || !dirty;
+    saveButton(form).hidden = !dirty;
     cancelButton(form).hidden = !dirty;
   }
 

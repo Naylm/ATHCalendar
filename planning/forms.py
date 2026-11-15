@@ -191,7 +191,7 @@ class BureauRegistrationForm(forms.Form):
         required=False,
         choices=[
             ("", "Conserver le niveau"),
-            ("organizer", "Organisateur"),
+            ("organizer", "Habitué"),
             ("beginner", "Débutant"),
         ],
     )

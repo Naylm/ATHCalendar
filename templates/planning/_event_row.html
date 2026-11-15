@@ -52,17 +52,17 @@
              required minlength="2" maxlength="40" autocomplete="name">
       <button type="submit" aria-label="Ajouter votre nom" title="Ajouter votre nom">+</button>
       <fieldset class="exp-choice" hidden>
-        <legend class="exp-legend">Votre niveau <span class="muted">— retenu pour vos prochaines dates</span></legend>
-        <label class="exp-option">
-          <input type="radio" name="experience_level" value="organizer">
-          {% include "planning/_level_badge.html" with level="organizer" decorative=True %}
-          <span>Organisateur</span>
-        </label>
-        <label class="exp-option">
-          <input type="radio" name="experience_level" value="beginner">
-          {% include "planning/_level_badge.html" with level="beginner" decorative=True %}
-          <span>Débutant — Jamais organisé ou très peu</span>
-        </label>
+        <legend class="exp-legend">Votre niveau</legend>
+        <div class="exp-options">
+          <label class="exp-option">
+            <input type="radio" name="experience_level" value="organizer">
+            <span>Habitué</span>
+          </label>
+          <label class="exp-option">
+            <input type="radio" name="experience_level" value="beginner">
+            <span>Débutant</span>
+          </label>
+        </div>
       </fieldset>
     </form>
     <p class="form-msg" hidden></p>

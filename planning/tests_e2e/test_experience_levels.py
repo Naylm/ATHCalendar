@@ -59,7 +59,9 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
         form = row.locator(".name-registration-form")
         form.locator("input[name=name]").fill(name)
         if level:
-            form.locator(f"input[name=experience_level][value={level}]").check()
+            form.locator(
+                f"label.exp-option:has(input[name=experience_level][value={level}])"
+            ).click()
         with expect_ok_response(page, "PUT", "/registration/"):
             form.locator("button[type=submit]").click()
 
@@ -71,7 +73,7 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
             event_id, second_id = self._event_ids(server)
             browser = pw.chromium.launch()
             try:
-                for width in (320, 390, 1440):
+                for width in (320, 390, 1024, 1440):
                     context = browser.new_context(
                         viewport={"width": width, "height": 900},
                         is_mobile=width < 768,
@@ -81,10 +83,9 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
                     page = tracked.page
                     page.goto(server.url + "/")
                     page.wait_for_selector(".name-registration-form", timeout=8000)
-                    # Légende visible et champ inactif compact.
-                    legend = page.locator(".level-legend")
-                    expect(legend).to_be_visible()
-                    expect(legend.locator(".exp-organizer")).to_be_visible()
+                    # Aucune légende ni chevron ; champ inactif compact.
+                    assert page.locator(".level-legend").count() == 0
+                    assert page.locator(".exp-chevrons").count() == 0
                     expect(page.locator(f"#date-{event_id} fieldset.exp-choice")).to_be_hidden()
                     # Géométrie inactive : nom et « + » sur la même ligne.
                     form = page.locator(f"#date-{event_id} .name-registration-form")
@@ -112,57 +113,94 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
                         assert field_w >= row_w - 32, (row_w, field_w)
                         check_no_horizontal_overflow(page)
                     if width == 320:
-                        page.screenshot(path=str(SCREENSHOT_DIR / "v030-fieldset-320.png"))
+                        page.screenshot(path=str(SCREENSHOT_DIR / "exp-fieldset-320.png"))
+                    # Deux choix textuels compacts, libellés visibles.
+                    options = fieldset.locator("label.exp-option")
+                    expect(options).to_have_count(2)
+                    expect(options.nth(0)).to_contain_text("Habitué")
+                    expect(options.nth(1)).to_contain_text("Débutant")
+                    expect(fieldset.locator("legend")).to_have_text("Votre niveau")
                     org_radio = fieldset.locator("input[value=organizer]")
                     beg_radio = fieldset.locator("input[value=beginner]")
-                    # Choix mutuellement exclusifs.
-                    beg_radio.check()
+                    # Choix mutuellement exclusifs via les libellés cliquables.
+                    options.nth(1).click()
                     expect(beg_radio).to_be_checked()
-                    org_radio.check()
+                    options.nth(0).click()
                     expect(org_radio).to_be_checked()
                     expect(beg_radio).not_to_be_checked()
-                    org_radio.check()
+                    # État sélectionné visible sur le libellé englobant.
+                    selected = fieldset.locator("label.exp-option:has(input:checked)")
+                    expect(selected).to_have_count(1)
+                    expect(selected).to_contain_text("Habitué")
                     with expect_ok_response(page, "PUT", "/registration/"):
                         form.locator("button[type=submit]").click()
                     names = self._names(page, event_id)
                     expect(names).to_contain_text("Alice", timeout=8000)
                     badge = names.locator(".exp-badge.exp-organizer")
                     expect(badge).to_be_visible()
-                    expect(names.get_by_role("img", name="Organisateur", exact=True)).to_have_count(
-                        1
-                    )
+                    expect(names.get_by_role("img", name="Habitué", exact=True)).to_have_count(1)
                     assert badge.count() == 1
-                    assert badge.locator(".exp-chevrons i").count() == 3, (
-                        "Trois chevrons pour un organisateur"
-                    )
-                    expect(badge).to_have_attribute("title", "Organisateur")
-                    assert badge.evaluate("el => el.getAttribute('aria-label')") == ("Organisateur")
+                    expect(badge).to_have_text("Habitué")
+                    assert badge.locator(".exp-chevrons").count() == 0
+                    expect(badge).to_have_attribute("title", "Habitué")
+                    assert badge.evaluate("el => el.getAttribute('aria-label')") == "Habitué"
                     # Deux débutants côte à côte, visibles.
                     self._submit(page, event_id, "Bob", level="beginner")
                     self._submit(page, event_id, "Carol", level="beginner")
                     expect(names).to_contain_text("Carol", timeout=8000)
                     beginners = names.locator(".exp-badge.exp-beginner")
                     expect(beginners).to_have_count(2, timeout=8000)
-                    expect(beginners.first).to_have_attribute(
-                        "title", "Débutant — Jamais organisé ou très peu"
+                    expect(beginners.first).to_have_text("Débutant")
+                    expect(beginners.first).to_have_attribute("title", "Débutant")
+                    expect(names.get_by_role("img", name="Débutant", exact=True)).to_have_count(2)
+                    # Saisie active avec noms déjà affichés : les deux options
+                    # restent sur la même ligne, alignées sur le champ nom.
+                    row = page.locator(f"#date-{event_id}")
+                    active_form = row.locator(".name-registration-form")
+                    active_form.locator("input[name=name]").fill("Brouillon")
+                    active_fieldset = active_form.locator("fieldset.exp-choice")
+                    expect(active_fieldset).to_be_visible()
+                    opts = active_fieldset.locator("label.exp-option")
+                    b0, b1 = opts.nth(0).bounding_box(), opts.nth(1).bounding_box()
+                    assert b0 and b1 and abs(b0["y"] - b1["y"]) <= 1, (b0, b1)
+                    assert min(b0["height"], b1["height"]) >= 44, (b0, b1)
+                    name_input = active_form.locator("input[name=name]")
+                    plus = active_form.locator("button[type=submit]")
+                    ni, pb = name_input.bounding_box(), plus.bounding_box()
+                    assert abs((ni["y"] + ni["height"] / 2) - (pb["y"] + pb["height"] / 2)) <= 2, (
+                        ni,
+                        pb,
                     )
-                    expect(
-                        names.get_by_role(
-                            "img",
-                            name="Débutant — Jamais organisé ou très peu",
-                            exact=True,
-                        )
-                    ).to_have_count(2)
-                    assert beginners.first.locator(".exp-chevrons i").count() == 1, (
-                        "Un chevron pour un débutant"
-                    )
+                    first_name = row.locator(".event-names .organizer-name").first
+                    fb = first_name.bounding_box()
+                    assert fb, "noms affichés pendant la saisie"
+                    if fb["y"] + fb["height"] > ni["y"] + ni["height"] / 2:
+                        # Même ligne : noms alignés en haut sur le champ.
+                        assert (
+                            abs((fb["y"] + fb["height"] / 2) - (ni["y"] + ni["height"] / 2)) <= 8
+                        ), (fb, ni)
+                    else:
+                        # Ligne repliée au-dessus : noms au-dessus du formulaire.
+                        assert fb["y"] + fb["height"] <= ni["y"] + 16, (fb, ni)
+                    check_no_horizontal_overflow(page)
+                    page.screenshot(path=str(SCREENSHOT_DIR / f"exp-active-{width}.png"))
+                    # Choix au clavier : focus natif + espace.
+                    beg_radio2 = active_fieldset.locator("input[value=beginner]")
+                    beg_radio2.focus()
+                    page.keyboard.press(" ")
+                    expect(beg_radio2).to_be_checked()
+                    # Modifier le nom réinitialise le choix fait au clavier.
+                    active_form.locator("input[name=name]").fill("Inconnu")
+                    expect(beg_radio2).not_to_be_checked()
                     # Sans choix : « Niveau à préciser ».
-                    self._submit(page, event_id, "Inconnu")
+                    with expect_ok_response(page, "PUT", "/registration/"):
+                        plus.click()
                     unknown = names.locator(".exp-badge.exp-unknown")
                     expect(unknown).to_be_visible()
+                    expect(unknown).to_have_text("À préciser")
                     expect(unknown).to_have_attribute("title", "Niveau à préciser")
                     check_no_horizontal_overflow(page)
-                    page.screenshot(path=str(SCREENSHOT_DIR / f"v030-badges-{width}.png"))
+                    page.screenshot(path=str(SCREENSHOT_DIR / f"exp-badges-{width}.png"))
                     # Niveau mémorisé à la date suivante, choix omis.
                     self._submit(page, second_id, "Bob")
                     second = self._names(page, second_id)
@@ -192,7 +230,7 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
             form = page.locator(f"#date-{event_id} .name-registration-form")
             form.locator("input[name=name]").fill("Alice")
             radio = form.locator("input[value=beginner]")
-            radio.check()
+            form.locator("label.exp-option:has(input[value=beginner])").click()
             expect(radio).to_be_checked()
             # Une mise à jour distante conserve nom + choix.
             server.query(
@@ -291,7 +329,7 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
             form = page.locator(f"#date-{event_id} .name-registration-form")
             form.locator("input[name=name]").fill("Alice")
             radio = form.locator("input[value=beginner]")
-            radio.check()
+            form.locator("label.exp-option:has(input[value=beginner])").click()
             expect(radio).to_be_checked()
             # Modifier le nom efface le choix fait pour le nom précédent.
             form.locator("input[name=name]").fill("Bob")

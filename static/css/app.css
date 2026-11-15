@@ -341,20 +341,17 @@ body[data-page="planning"] .event-date {
 .event-card.is-cancelled { opacity: 0.7; border-style: dashed; }
 .name-registration-form { grid-column: 3; grid-row: 1 / span 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .name-registration-form input[name=name] { min-width: 0; max-width: 200px; }
-.exp-badge { display: inline-flex; align-items: center; margin-left: 4px; vertical-align: baseline; }
-.exp-chevrons { display: inline-flex; flex-direction: column; gap: 1px; }
-.exp-chevrons i { display: block; width: 7px; height: 7px; border-left: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); }
-.exp-organizer { color: var(--organizer-text); }
-.exp-beginner { color: var(--beginner-text); }
-.exp-unknown { color: var(--muted); font-size: 0.85em; font-weight: 700; }
-.exp-choice { grid-column: 1 / -1; min-width: 0; border: 0; padding: 0; margin: 2px 0 0; font-size: 0.8rem; }
-.exp-legend { font-size: 0.75rem; padding: 0; margin-bottom: 2px; }
-.exp-option { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 0.8rem; min-height: 44px; }
-.exp-option .exp-badge { margin-left: 0; }
-.exp-option input[type="radio"] { width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; flex: none; accent-color: var(--primary); }
-.level-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 0.75rem; }
-.level-legend-item { display: inline-flex; align-items: center; gap: 4px; }
-.level-legend .exp-badge { margin-left: 0; }
+.exp-badge { display: inline-block; margin-left: 4px; padding: 0 4px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 0.7rem; font-weight: 500; line-height: 1.5; vertical-align: baseline; white-space: nowrap; }
+.exp-organizer { color: var(--organizer-text); border-color: rgba(232, 194, 124, 0.4); background: rgba(232, 194, 124, 0.12); }
+.exp-beginner { color: var(--beginner-text); border-color: rgba(159, 179, 200, 0.4); background: rgba(159, 179, 200, 0.12); }
+.exp-unknown { color: var(--muted); }
+.exp-choice { grid-column: 1 / -1; width: 100%; min-width: 0; border: 0; padding: 0; margin: 2px 0 0; font-size: 0.8rem; }
+.exp-legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+.exp-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.exp-option { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 0 8px; font-size: 0.8rem; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.exp-option:has(input:checked) { border-color: var(--primary); background: rgba(222, 135, 11, 0.15); color: var(--primary-hover); }
+.exp-option:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
+.exp-option input[type="radio"] { position: absolute; top: 50%; left: 50%; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 .event-type-select { width: auto; max-width: 220px; }
 .form-msg, .type-msg { grid-column: 1 / -1; margin: 4px 0 0; font-size: 0.9rem; }
 .type-msg { color: var(--danger-text); }
@@ -957,3 +954,18 @@ body[data-page="planning"] .event-card.weekend-start {
   }
 }
 .type-delete { overflow-wrap: anywhere; }
+
+body[data-page="planning"] .event-card:has(.exp-choice:not([hidden])) .event-organizers {
+  align-items: flex-start;
+}
+body[data-page="planning"] .event-card:has(.exp-choice:not([hidden])) .event-names {
+  padding-top: 6px;
+}
+body[data-page="planning"] .name-registration-form:has(.exp-choice:not([hidden])) {
+  flex-basis: 220px;
+}
+@media (max-width: 719px) {
+  body[data-page="planning"] .event-card:has(.exp-choice:not([hidden])) .event-names {
+    padding-top: 10px;
+  }
+}

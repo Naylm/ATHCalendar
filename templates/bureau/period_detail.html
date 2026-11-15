@@ -68,11 +68,6 @@
 </form>
 {% if selection_form %}{{ selection_form.non_field_errors }}{{ selection_form.event_ids.errors }}{{ selection_form.selection_action.errors }}{{ selection_form.expected_revision.errors }}{{ selection_form.staffing.errors }}{{ selection_form.confirm.errors }}{% endif %}
 <p class="muted visibility-legend">Cochée : visible sur le planning.</p>
-<p class="level-legend muted">
-  <span class="level-legend-item">{% include "planning/_level_badge.html" with level="organizer" decorative=True %} Organisateur</span>
-  <span class="level-legend-item">{% include "planning/_level_badge.html" with level="beginner" decorative=True %} Débutant</span>
-  <span class="level-legend-item">{% include "planning/_level_badge.html" with level="" decorative=True %} Niveau à préciser</span>
-</p>
 <ul class="event-list">
   {% for event in events %}
   <li class="card event-card bureau-event {% if event.is_hidden %}is-hidden{% endif %}{% if event.payload.status == 'cancelled' %} is-cancelled{% endif %}">

@@ -10,29 +10,15 @@ from planning.errors import (
 from planning.models import Event, Registration
 
 from . import audit
+from . import organizers as organizer_services
 from .actors import Actor
-from .events import MAX_BATCH, get_event
+from .events import MAX_BATCH, _public_write_allowed, get_event
 from .organizers import canonical, get_organizer
 from .periods import _require_not_archived, bump_revision, paris_today
 from .validators import optional_str, parse_uuid
 
 ACTIVE = Registration.State.ACTIVE
 WITHDRAWN = Registration.State.WITHDRAWN
-
-
-def _public_write_allowed(event, today):
-    if event.is_hidden:
-        raise ClosedConflict("Cette date n'est plus visible.")
-    if event.status != Event.Status.SCHEDULED:
-        raise ClosedConflict("Cette date a été annulée par le Bureau.")
-    if event.date < today:
-        raise ClosedConflict("Cette date est passée ; modification impossible.")
-    if event.availability != Event.Availability.AVAILABLE:
-        raise ClosedConflict(
-            "Cette date est complète."
-            if event.availability == Event.Availability.FULL
-            else "Cette date est indisponible."
-        )
 
 
 def _check_capacity(event, exclude_registration_id=None):
@@ -52,6 +38,7 @@ def set_registration(
     *,
     actor: Actor,
     note=None,
+    experience_level=None,
     expected_version=None,
     expected_event_version=None,
 ):
@@ -59,6 +46,13 @@ def set_registration(
         raise ValidationFailed("État demandé invalide.", fields={"state": str(desired_state)})
     if note is not None:
         note = optional_str(note, "La note", max_len=500, field="note")
+    if experience_level is not None:
+        experience_level = organizer_services.validate_experience_level(experience_level)
+        if desired_state == WITHDRAWN:
+            raise ValidationFailed(
+                "Le niveau ne peut pas être modifié lors d'un retrait.",
+                fields={"experience_level": str(experience_level)},
+            )
     event = get_event(event_id)
     organizer = get_organizer(organizer_id)
     today = paris_today()
@@ -78,15 +72,35 @@ def set_registration(
         registration = Registration.objects.filter(event=event, organizer=organizer).first()
         new_state = desired_state
         new_note = note if note is not None else (registration.note if registration else "")
+        if new_state == ACTIVE:
+            if experience_level is not None:
+                new_level = experience_level
+            elif registration is not None and registration.state == ACTIVE:
+                new_level = registration.experience_level
+            else:
+                new_level = organizer.experience_level
+        else:
+            new_level = registration.experience_level if registration else ""
+        profile_change = (
+            experience_level is not None and organizer.experience_level != experience_level
+        )
         if registration is not None and expected_version is not None:
-            needs_change = registration.state != new_state or registration.note != new_note
+            needs_change = (
+                registration.state != new_state
+                or registration.note != new_note
+                or registration.experience_level != new_level
+                or profile_change
+            )
             if needs_change and registration.version != expected_version:
                 raise VersionConflict(
                     "Cette inscription a été modifiée entre-temps ; veuillez recharger.",
                     fields={"version": str(registration.version)},
                 )
         if registration is not None and (
-            registration.state == new_state and (note is None or registration.note == new_note)
+            registration.state == new_state
+            and (note is None or registration.note == new_note)
+            and registration.experience_level == new_level
+            and not profile_change
         ):
             return registration
         if new_state == ACTIVE:
@@ -101,6 +115,7 @@ def set_registration(
                 event=event, organizer=organizer, organizer_name=organizer.name
             )
         registration.state = new_state
+        registration.experience_level = new_level
         if note is not None:
             registration.note = note
         registration.organizer_name = organizer.name
@@ -115,6 +130,14 @@ def set_registration(
             before=before,
             after=audit.snapshot(registration),
         )
+        if experience_level is not None and new_state == ACTIVE:
+            organizer_services._set_experience_level(
+                organizer,
+                actor=actor,
+                level=experience_level,
+                exclude_registration_id=registration.pk,
+                today=today,
+            )
         return registration
 
 

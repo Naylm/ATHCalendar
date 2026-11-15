@@ -44,6 +44,38 @@
     return { organizer: data.organizer, registration: found };
   }
 
+  function choiceField(form) {
+    return form.querySelector("fieldset.exp-choice");
+  }
+
+  function checkedLevel(form) {
+    var r = form.querySelector("input[name=experience_level]:checked");
+    return r ? r.value : null;
+  }
+
+  function clearRadios(form) {
+    form
+      .querySelectorAll("input[name=experience_level]")
+      .forEach(function (r) {
+        r.checked = false;
+      });
+  }
+
+  function syncChoice(form) {
+    var input = form.querySelector("input[name=name]");
+    var field = choiceField(form);
+    if (!input || !field) return;
+    field.hidden = !input.value.trim();
+  }
+
+  function setChoiceDisabled(form, disabled) {
+    form
+      .querySelectorAll("input[name=experience_level]")
+      .forEach(function (r) {
+        r.disabled = disabled;
+      });
+  }
+
   async function submitName(form) {
     var row = rowFor(form);
     var input = form.querySelector("input[name=name]");
@@ -54,9 +86,11 @@
       showMsg(form, "Indiquez votre nom (2 caractères minimum).", true);
       return;
     }
+    var level = checkedLevel(form);
     if (!window.ath.live.begin(row)) return;
     button.disabled = true;
     input.disabled = true;
+    setChoiceDisabled(form, true);
     clearMsg(form);
     try {
       var created = await window.ath.apiFetch("/api/organizers/create/", {
@@ -65,19 +99,23 @@
       });
       var result = await findMyRegistration(created.organizer.id, row.dataset.eventId);
       var mine = result.registration;
+      var putBody = {
+        organizer_id: result.organizer.id,
+        state: "active",
+        expected_event_version: parseInt(row.dataset.version, 10),
+        expected_version: mine ? mine.version : 0,
+      };
+      if (level) putBody.experience_level = level;
       await window.ath.apiFetch(
         "/api/events/" + row.dataset.eventId + "/registration/",
         {
           method: "PUT",
-          body: JSON.stringify({
-            organizer_id: result.organizer.id,
-            state: "active",
-            expected_event_version: parseInt(row.dataset.version, 10),
-            expected_version: mine ? mine.version : 0,
-          }),
+          body: JSON.stringify(putBody),
         }
       );
       input.value = "";
+      clearRadios(form);
+      syncChoice(form);
       if (window.ath.toast) window.ath.toast("Ajouté", false);
       await window.ath.live.end(row, true);
     } catch (err) {
@@ -87,12 +125,21 @@
     } finally {
       input.disabled = false;
       button.disabled = form.dataset.locked === "1";
+      setChoiceDisabled(form, form.dataset.locked === "1");
     }
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     var list = document.getElementById("event-list");
     if (list) {
+      list.addEventListener("input", function (e) {
+        if (e.target && e.target.matches(".name-registration-form input[name=name]")) {
+          var form = e.target.closest(".name-registration-form");
+          if (!form) return;
+          clearRadios(form);
+          syncChoice(form);
+        }
+      });
       list.addEventListener("submit", function (e) {
         var form = e.target.closest
           ? e.target.closest(".name-registration-form")

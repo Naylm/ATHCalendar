@@ -220,7 +220,7 @@ class PublicUiTests(unittest.TestCase):
                 )
                 assert unchanged == before
                 with expect_ok_response(page, "PUT", "/registration/"):
-                    row.locator("button[type=submit]").click()
+                    row.locator(".name-registration-form button[type=submit]").click()
                 expect(page.locator(f"#date-{event_id} .event-names")).to_contain_text(
                     "Pseudo E2E", timeout=8000
                 )
@@ -248,7 +248,7 @@ class PublicUiTests(unittest.TestCase):
                 row = page.locator(f"#date-{event_id}")
                 row.locator("input[name=name]").fill("Volontaire E2E")
                 with expect_ok_response(page, "PUT", "/registration/"):
-                    row.locator("button[type=submit]").click()
+                    row.locator(".name-registration-form button[type=submit]").click()
                 expect(page.locator(f"#date-{event_id} .event-names")).to_contain_text(
                     "Volontaire E2E", timeout=8000
                 )

@@ -33,6 +33,21 @@ UNSET = object()
 MAX_BATCH = 200
 
 
+def _public_write_allowed(event, today):
+    if event.is_hidden:
+        raise ClosedConflict("Cette date n'est plus visible.")
+    if event.status != Event.Status.SCHEDULED:
+        raise ClosedConflict("Cette date a été annulée par le Bureau.")
+    if event.date < today:
+        raise ClosedConflict("Cette date est passée ; modification impossible.")
+    if event.availability != Event.Availability.AVAILABLE:
+        raise ClosedConflict(
+            "Cette date est complète."
+            if event.availability == Event.Availability.FULL
+            else "Cette date est indisponible."
+        )
+
+
 def get_event(event_id) -> Event:
     try:
         return Event.objects.select_related("period", "game_type").get(pk=parse_uuid(event_id))

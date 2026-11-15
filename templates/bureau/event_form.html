@@ -35,7 +35,7 @@
 <ul class="event-list">
   {% for reg in registrations %}
   <li class="card">
-    <strong>{{ reg.organizer_name }}</strong> — {{ reg.get_state_display }}
+    <strong>{{ reg.organizer_name }}</strong>{% include "planning/_level_badge.html" with level=reg.experience_level %} — {{ reg.get_state_display }}
     {% if reg.note %}<p>Note&nbsp;: {{ reg.note }}</p>{% endif %}
   </li>
   {% empty %}<li class="card muted">Aucune inscription.</li>
@@ -52,6 +52,12 @@
       </select></label></p>
     <p><label>Action
       <select name="state"><option value="active">Inscrire</option><option value="withdrawn">Retirer</option></select></label></p>
+    <p><label>Niveau
+      <select name="experience_level">
+        <option value="">Conserver le niveau</option>
+        <option value="organizer">Organisateur</option>
+        <option value="beginner">Débutant</option>
+      </select></label></p>
     <p><label>Note <input name="note" maxlength="500"></label></p>
     <button type="submit" name="action" value="registration" class="btn">Appliquer</button>
   </form>

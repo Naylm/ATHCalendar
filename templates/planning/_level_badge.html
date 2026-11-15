@@ -1,0 +1,7 @@
+{% if level == 'organizer' %}
+<span class="exp-badge exp-organizer"{% if decorative %} aria-hidden="true" title="Organisateur"{% else %} role="img" aria-label="Organisateur" title="Organisateur"{% endif %}><span class="exp-chevrons" aria-hidden="true"><i></i><i></i><i></i></span></span>
+{% elif level == 'beginner' %}
+<span class="exp-badge exp-beginner"{% if decorative %} aria-hidden="true" title="Débutant — Jamais organisé ou très peu"{% else %} role="img" aria-label="Débutant — Jamais organisé ou très peu" title="Débutant — Jamais organisé ou très peu"{% endif %}><span class="exp-chevrons" aria-hidden="true"><i></i></span></span>
+{% else %}
+<span class="exp-badge exp-unknown"{% if decorative %} aria-hidden="true" title="Niveau à préciser"{% else %} role="img" aria-label="Niveau à préciser" title="Niveau à préciser"{% endif %}>?</span>
+{% endif %}

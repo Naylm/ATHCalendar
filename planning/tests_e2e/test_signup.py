@@ -119,7 +119,9 @@ class NameSignupTests(unittest.TestCase):
             msg.wait_for(state="visible", timeout=8000)
             assert msg.get_attribute("role") == "alert"
             assert page.locator(f"#date-{event_id} input[name=name]").input_value() == "Alice"
-            assert page.locator(f"#date-{event_id} button[type=submit]").is_enabled()
+            expect(
+                page.locator(f"#date-{event_id} .name-registration-form button[type=submit]")
+            ).to_be_enabled(timeout=8000)
             count = server.query(
                 "from planning.models import Registration;print(Registration.objects.count())"
             )

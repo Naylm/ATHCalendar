@@ -629,6 +629,11 @@ def event_edit(request, event_id):
                         reg_form.cleaned_data["state"],
                         actor=_bureau_actor(request),
                         note=reg_form.cleaned_data["note"],
+                        experience_level=(
+                            reg_form.cleaned_data["experience_level"] or None
+                            if reg_form.cleaned_data["state"] == "active"
+                            else None
+                        ),
                     )
             if action != "update":
                 return redirect(f"/bureau/dates/{event.pk}/")

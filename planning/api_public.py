@@ -108,7 +108,16 @@ def period_live(request, period_id):
 @require_GET
 def organizers_list(request):
     return JsonResponse(
-        {"organizers": [{"id": str(o.pk), "name": o.name} for o in selectors.public_organizers()]}
+        {
+            "organizers": [
+                {
+                    "id": str(o.pk),
+                    "name": o.name,
+                    "experience_level": o.experience_level,
+                }
+                for o in selectors.public_organizers()
+            ]
+        }
     )
 
 
@@ -129,7 +138,13 @@ def organizer_create(request):
     )
     organizer = organizer_services.get_or_create_organizer(name, actor=actor)
     return JsonResponse(
-        {"organizer": {"id": str(organizer.pk), "name": organizer.name}},
+        {
+            "organizer": {
+                "id": str(organizer.pk),
+                "name": organizer.name,
+                "experience_level": organizer.experience_level,
+            }
+        },
         status=201,
     )
 
@@ -142,7 +157,11 @@ def organizer_registrations(request, organizer_id):
     regs = selectors.organizer_registrations(organizer, include_past=include_past)
     return JsonResponse(
         {
-            "organizer": {"id": str(organizer.pk), "name": organizer.name},
+            "organizer": {
+                "id": str(organizer.pk),
+                "name": organizer.name,
+                "experience_level": organizer.experience_level,
+            },
             "registrations": [
                 {
                     "event_id": str(reg.event_id),
@@ -152,6 +171,7 @@ def organizer_registrations(request, organizer_id):
                     "type_label": reg.event.type_label or "À définir",
                     "state": reg.state,
                     "note": reg.note,
+                    "experience_level": reg.experience_level,
                     "version": reg.version,
                     "event_version": reg.event.version,
                     "status": reg.event.status,
@@ -189,12 +209,16 @@ def event_registration(request, event_id):
         body["expected_event_version"], "expected_event_version", minimum=1
     )
     expected_version = _strict_version(body["expected_version"], "expected_version", minimum=0)
+    experience_level = None
+    if "experience_level" in body:
+        experience_level = organizer_services.validate_experience_level(body["experience_level"])
     registration = registration_services.set_registration(
         event_id,
         organizer.pk,
         body.get("state"),
         actor=actor_for_request(request, organizer),
         note=body.get("note"),
+        experience_level=experience_level,
         expected_version=expected_version,
         expected_event_version=expected_event_version,
     )
@@ -205,6 +229,7 @@ def event_registration(request, event_id):
                 "event_id": str(registration.event_id),
                 "state": registration.state,
                 "note": registration.note,
+                "experience_level": registration.experience_level,
                 "version": registration.version,
             }
         }

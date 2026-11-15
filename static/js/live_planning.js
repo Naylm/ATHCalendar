@@ -138,7 +138,10 @@
     if (li.querySelector(".event-note-form[data-dirty='1']")) return true;
     if (li.contains(document.activeElement)) return true;
     var input = li.querySelector(".name-registration-form input[name=name]");
-    return !!(input && input.value.trim());
+    if (input && input.value.trim()) return true;
+    return !!li.querySelector(
+      ".name-registration-form input[name=experience_level]:checked"
+    );
   }
 
   function reconcileGroups(frag) {
@@ -225,6 +228,11 @@
         form.dataset.locked = "1";
         var btn = form.querySelector("button[type=submit]");
         if (btn) btn.disabled = true;
+        form
+          .querySelectorAll("input[name=experience_level]")
+          .forEach(function (r) {
+            r.disabled = true;
+          });
       }
       var msg = li.querySelector(".form-msg");
       if (msg) {
@@ -407,6 +415,11 @@
           var input = dform.querySelector("input[name=name]");
           if (btn) btn.disabled = false;
           if (input) input.disabled = false;
+          dform
+            .querySelectorAll("input[name=experience_level]")
+            .forEach(function (r) {
+              r.disabled = false;
+            });
           if (dtag) dtag.remove();
         }
       } else if (dtag) {
@@ -422,6 +435,11 @@
         dform.dataset.locked = "1";
         var sbtn = dform.querySelector("button[type=submit]");
         if (sbtn) sbtn.disabled = true;
+        dform
+          .querySelectorAll("input[name=experience_level]")
+          .forEach(function (r) {
+            r.disabled = true;
+          });
         if (dtag) {
           if (dtag.outerHTML !== stag.outerHTML) dtag.replaceWith(stag.cloneNode(true));
         } else {
@@ -445,6 +463,9 @@
       row &&
       row.dataset.removed === "1" &&
       !input.value.trim() &&
+      !row.querySelector(
+        ".name-registration-form input[name=experience_level]:checked"
+      ) &&
       !row.querySelector(".event-note-form[data-dirty='1']") &&
       !row.contains(document.activeElement)
     ) {

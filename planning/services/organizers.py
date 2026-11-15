@@ -1,12 +1,13 @@
 import unicodedata
 
 from planning.db import write_transaction
-from planning.errors import Conflict, NotFound, ValidationFailed
+from planning.errors import ClosedConflict, Conflict, NotFound, ValidationFailed
 from planning.models import Organizer, Period, Registration
 
 from . import audit
 from .actors import Actor
-from .periods import _require_bureau, bump_revision
+from .events import _public_write_allowed
+from .periods import _require_bureau, bump_revision, paris_today
 from .validators import parse_uuid, require_str
 
 
@@ -64,6 +65,68 @@ def get_or_create_organizer(name, *, actor=None):
                 after=audit.snapshot(organizer),
             )
         return canonical(organizer)
+
+
+def validate_experience_level(level):
+    valid = dict(Organizer.ExperienceLevel.choices)
+    if not isinstance(level, str) or level not in valid:
+        raise ValidationFailed("Niveau invalide.", fields={"experience_level": str(level)})
+    return level
+
+
+def _set_experience_level(
+    organizer, *, actor: Actor, level, exclude_registration_id=None, today=None
+):
+    """Met à jour le niveau canonique du pseudo et propage l'instantané aux
+    autres inscriptions actives à venir (périmètre selon l'acteur).
+    Appelé uniquement à l'intérieur d'une write_transaction, après validation
+    de l'inscription courante (exclue de la propagation)."""
+    level = validate_experience_level(level)
+    today = today or paris_today()
+    if organizer.experience_level != level:
+        before = audit.snapshot(organizer)
+        organizer.experience_level = level
+        organizer.save(update_fields=["experience_level", "updated_at"])
+        audit.log(
+            actor=actor,
+            action="organizer.experience_level",
+            target=organizer,
+            before=before,
+            after=audit.snapshot(organizer),
+        )
+    regs = (
+        organizer.registrations.select_related("event", "event__period")
+        .filter(
+            state=Registration.State.ACTIVE,
+            event__date__gte=today,
+            event__period__archived_at__isnull=True,
+        )
+        .exclude(pk=exclude_registration_id)
+    )
+    periods = set()
+    for reg in regs:
+        event = reg.event
+        if not actor.is_bureau:
+            try:
+                _public_write_allowed(event, today)
+            except ClosedConflict:
+                continue
+        if reg.experience_level == level:
+            continue
+        before = audit.snapshot(reg)
+        reg.experience_level = level
+        reg.version += 1
+        reg.save(update_fields=["experience_level", "version", "updated_at"])
+        audit.log(
+            actor=actor,
+            action="registration.set",
+            target=reg,
+            before=before,
+            after=audit.snapshot(reg),
+        )
+        periods.add(event.period_id)
+    for period in Period.objects.filter(pk__in=periods):
+        bump_revision(period)
 
 
 def get_organizer(organizer_id) -> Organizer:

@@ -34,7 +34,7 @@
     {% endif %}
   </div>
   <div class="event-organizers">
-    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span>{% if interactive %}<button type="button" class="remove-registration" data-organizer-id="{{ reg.organizer_id }}" data-registration-id="{{ reg.registration_id }}" data-registration-version="{{ reg.version }}" aria-label="Retirer {{ reg.organizer_name }}" title="Retirer">×</button>{% endif %}</span>{% endfor %}</p>
+    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span>{% include "planning/_level_badge.html" with level=reg.experience_level %}{% if interactive %}<button type="button" class="remove-registration" data-organizer-id="{{ reg.organizer_id }}" data-registration-id="{{ reg.registration_id }}" data-registration-version="{{ reg.version }}" aria-label="Retirer {{ reg.organizer_name }}" title="Retirer">×</button>{% endif %}</span>{% endfor %}</p>
     {% if event.payload.status == 'cancelled' %}
     <span class="tag tag-danger event-lock-status">Annulée</span>
     {% elif period.is_archived %}
@@ -51,6 +51,19 @@
              aria-label="Votre nom pour le {{ event.date|date:'l j F Y' }}"
              required minlength="2" maxlength="40" autocomplete="name">
       <button type="submit" aria-label="Ajouter votre nom" title="Ajouter votre nom">+</button>
+      <fieldset class="exp-choice" hidden>
+        <legend class="exp-legend">Votre niveau <span class="muted">— retenu pour vos prochaines dates</span></legend>
+        <label class="exp-option">
+          <input type="radio" name="experience_level" value="organizer">
+          {% include "planning/_level_badge.html" with level="organizer" decorative=True %}
+          <span>Organisateur</span>
+        </label>
+        <label class="exp-option">
+          <input type="radio" name="experience_level" value="beginner">
+          {% include "planning/_level_badge.html" with level="beginner" decorative=True %}
+          <span>Débutant — Jamais organisé ou très peu</span>
+        </label>
+      </fieldset>
     </form>
     <p class="form-msg" hidden></p>
     {% endif %}

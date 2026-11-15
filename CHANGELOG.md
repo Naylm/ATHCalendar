@@ -1,5 +1,17 @@
 # Journal des versions
 
+## 0.3.0
+
+- À l'inscription, chacun peut se qualifier : « Organisateur » (trois
+  chevrons) ou « Débutant — Jamais organisé ou très peu » (un chevron) ;
+  le badge s'affiche à côté du nom sur le planning, le détail d'une date,
+  « Mes inscriptions » et le Bureau.
+- Le choix est facultatif et mémorisé pour les inscriptions suivantes ;
+  les pseudos existants restent « Niveau à préciser » et le Bureau peut
+  corriger depuis une date.
+- Aucun blocage automatique : le Bureau apprécie la composition des
+  équipes, sans changement du comptage minimum.
+
 ## 0.2.7
 
 - L'espace réservé de la note de date affiche « Note/information : » au lieu

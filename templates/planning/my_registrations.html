@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Mes inscriptions</h1>
 {% if organizer %}
-<p>Pseudo&nbsp;: <strong>{{ organizer.name }}</strong> <button type="button" class="link-btn" id="change-pseudo-2">Changer</button></p>
+<p>Pseudo&nbsp;: <strong>{{ organizer.name }}</strong>{% include "planning/_level_badge.html" with level=organizer.experience_level %} <button type="button" class="link-btn" id="change-pseudo-2">Changer</button></p>
 <div class="filters">
   <a class="chip {% if not history %}active{% endif %}" href="?organizer={{ organizer.pk }}">À venir</a>
   <a class="chip {% if history %}active{% endif %}" href="?organizer={{ organizer.pk }}&historique=1">Historique</a>
@@ -25,6 +25,7 @@
     <div class="event-head">
       <span class="event-date">{{ reg.event.date|date:'l j F Y' }}</span>
       <span class="tag">{{ reg.event.type_label|default:'À définir' }}</span>
+      {% include "planning/_level_badge.html" with level=reg.experience_level %}
       {% if reg.state == 'withdrawn' %}<span class="tag tag-muted">Retirée</span>{% endif %}
       {% if reg.event.status == 'cancelled' %}<span class="tag tag-danger">Annulée</span>{% endif %}
       {% if reg.event.availability != 'available' %}<span class="tag tag-muted">{{ reg.event.get_availability_display }}</span>{% endif %}

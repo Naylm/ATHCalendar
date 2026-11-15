@@ -27,7 +27,14 @@ SAFE_FIELDS = {
         "is_hidden",
         "version",
     ],
-    "Organizer": ["id", "name", "normalized_key", "is_active", "merged_into_id"],
+    "Organizer": [
+        "id",
+        "name",
+        "normalized_key",
+        "is_active",
+        "experience_level",
+        "merged_into_id",
+    ],
     "SiteSettings": [
         "site_name",
         "default_min_organizers",
@@ -39,6 +46,7 @@ SAFE_FIELDS = {
         "event_id",
         "organizer_id",
         "organizer_name",
+        "experience_level",
         "state",
         "note",
         "version",

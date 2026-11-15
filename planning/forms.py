@@ -186,6 +186,15 @@ class PasswordChangeBureauForm(forms.Form):
 class BureauRegistrationForm(forms.Form):
     organizer = forms.UUIDField(label="Pseudo")
     state = forms.ChoiceField(choices=[("active", "Inscrire"), ("withdrawn", "Retirer")])
+    experience_level = forms.ChoiceField(
+        label="Niveau",
+        required=False,
+        choices=[
+            ("", "Conserver le niveau"),
+            ("organizer", "Organisateur"),
+            ("beginner", "Débutant"),
+        ],
+    )
     note = forms.CharField(label="Note", max_length=500, required=False)
 
 

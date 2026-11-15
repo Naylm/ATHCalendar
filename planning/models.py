@@ -117,10 +117,17 @@ class Event(models.Model):
 
 
 class Organizer(models.Model):
+    class ExperienceLevel(models.TextChoices):
+        ORGANIZER = "organizer", "Organisateur"
+        BEGINNER = "beginner", "Débutant"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=40)
     normalized_key = models.CharField(max_length=80, unique=True)
     is_active = models.BooleanField(default=True)
+    experience_level = models.CharField(
+        max_length=16, choices=ExperienceLevel, blank=True, default=""
+    )
     merged_into = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -135,6 +142,9 @@ class Registration(models.Model):
     event = models.ForeignKey(Event, related_name="registrations", on_delete=models.CASCADE)
     organizer = models.ForeignKey(Organizer, related_name="registrations", on_delete=models.CASCADE)
     organizer_name = models.CharField(max_length=40)
+    experience_level = models.CharField(
+        max_length=16, choices=Organizer.ExperienceLevel, blank=True, default=""
+    )
     state = models.CharField(max_length=10, choices=State, default=State.ACTIVE)
     note = models.CharField(max_length=500, blank=True)
     version = models.PositiveIntegerField(default=1)

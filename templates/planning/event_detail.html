@@ -27,7 +27,7 @@
   <h2>Organisateurs</h2>
   <ul class="organizer-list">
     {% for reg in payload.organizers %}
-    <li><strong>{{ reg.organizer_name }}</strong>{% if reg.note %} <span class="muted">— {{ reg.note }}</span>{% endif %}</li>
+    <li><strong>{{ reg.organizer_name }}</strong>{% include "planning/_level_badge.html" with level=reg.experience_level %}{% if reg.note %} <span class="muted">— {{ reg.note }}</span>{% endif %}</li>
     {% empty %}<li class="muted">Aucun organisateur pour le moment.</li>
     {% endfor %}
   </ul>

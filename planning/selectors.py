@@ -194,6 +194,7 @@ def event_payload(event, today=None):
             "registration_id": str(reg.pk),
             "organizer_id": str(reg.organizer_id),
             "organizer_name": reg.organizer_name,
+            "experience_level": reg.experience_level,
             "note": reg.note,
             "version": reg.version,
         }

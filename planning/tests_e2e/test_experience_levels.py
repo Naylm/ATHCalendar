@@ -195,10 +195,11 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
                     # Sans choix : « Niveau à préciser ».
                     with expect_ok_response(page, "PUT", "/registration/"):
                         plus.click()
-                    unknown = names.locator(".exp-badge.exp-unknown")
+                    unknown = names.locator("select.experience-edit.exp-unknown")
                     expect(unknown).to_be_visible()
-                    expect(unknown).to_have_text("À préciser")
-                    expect(unknown).to_have_attribute("title", "Niveau à préciser")
+                    expect(unknown).to_have_value("")
+                    expect(unknown.locator("option").first).to_have_text("À préciser")
+                    expect(unknown).to_have_attribute("aria-label", "Niveau de Inconnu")
                     check_no_horizontal_overflow(page)
                     page.screenshot(path=str(SCREENSHOT_DIR / f"exp-badges-{width}.png"))
                     # Niveau mémorisé à la date suivante, choix omis.
@@ -342,6 +343,134 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
             expect(names).to_contain_text("Bob", timeout=8000)
             assert names.locator(".exp-badge.exp-beginner").count() == 0
             expect(names.locator(".exp-badge.exp-unknown")).to_be_visible()
+            tracked.assert_clean()
+            browser.close()
+
+    def test_unknown_select_sets_level_and_propagates(self):
+        with self._server() as server, browser_tests()() as pw:
+            event_id, second_id, third_id = self._event_ids(server, 3)
+            browser, tracked = self._page(pw, server)
+            page = tracked.page
+            # Alice inscrite sans niveau sur les deux dates AVANT l'édition.
+            self._submit(page, event_id, "Alice")
+            self._submit(page, second_id, "Alice")
+            names = self._names(page, event_id)
+            select = names.locator("select.experience-edit")
+            expect(select).to_be_visible()
+            expect(select).to_have_value("")
+            # Note non vide posée côté serveur, puis affichage à jour.
+            server.query(
+                "from planning.services import registrations\n"
+                "from planning.services.actors import Actor\n"
+                "from planning.models import Registration\n"
+                f"r = Registration.objects.get(event_id='{event_id}',"
+                " organizer__name='Alice')\n"
+                f"registrations.set_registration('{event_id}',"
+                " str(r.organizer_id), 'active', actor=Actor.bureau(),"
+                " note='note privée', expected_version=r.version,"
+                " expected_event_version=r.event.version)"
+            )
+            reg_id = server.query(
+                "from planning.models import Registration\n"
+                f"r = Registration.objects.get(event_id='{event_id}',"
+                " organizer__name='Alice')\n"
+                "print(r.pk)"
+            ).strip()
+            page.evaluate("window.ath.live.refresh(true)")
+            expect(select).to_be_visible(timeout=8000)
+            # Brouillon voisin conservé pendant la mise à jour.
+            draft = page.locator(f"#date-{third_id} .name-registration-form input[name=name]")
+            draft.fill("Brouillon")
+            page.screenshot(path=str(SCREENSHOT_DIR / "exp-select-unknown-390.png"))
+            # Choix natif : Habitué, sans retrait ni nouvelle inscription.
+            with expect_ok_response(page, "PUT", "/registration/"):
+                select.select_option("organizer")
+            expect(names.locator(".exp-badge.exp-organizer")).to_have_text("Habitué", timeout=8000)
+            expect(names.locator("select.experience-edit")).to_have_count(0)
+            # Même inscription mise à jour : UUID, note et état inchangés.
+            reg = server.query(
+                "from planning.models import Registration\n"
+                f"r = Registration.objects.get(event_id='{event_id}',"
+                " organizer__name='Alice')\n"
+                "print(r.pk, r.state, r.experience_level, repr(r.note),"
+                " r.organizer.experience_level)"
+            )
+            assert reg == f"{reg_id} active organizer 'note privée' organizer", reg
+            # Propagation canonique : la seconde inscription existante suit.
+            second_state = server.query(
+                "from planning.models import Registration\n"
+                f"r = Registration.objects.get(event_id='{second_id}',"
+                " organizer__name='Alice')\n"
+                "print(r.state, r.experience_level)"
+            )
+            assert second_state.strip() == "active organizer", second_state
+            # Après sync : la seconde date affiche Habitué sans nouvelle action.
+            page.evaluate("window.ath.live.refresh(true)")
+            second = self._names(page, second_id)
+            expect(second.locator(".exp-badge.exp-organizer")).to_be_visible(timeout=8000)
+            assert draft.input_value() == "Brouillon"
+            check_no_horizontal_overflow(page)
+            page.screenshot(path=str(SCREENSHOT_DIR / "exp-select-390.png"))
+            tracked.assert_clean()
+            browser.close()
+
+    def test_experience_select_failure_conflict_and_readonly(self):
+        with self._server() as server, browser_tests()() as pw:
+            event_id = self._event_ids(server, 1)[0]
+            browser, tracked = self._page(pw, server)
+            page = tracked.page
+            self._submit(page, event_id, "Alice")
+            self._submit(page, event_id, "Bob")
+            names = self._names(page, event_id)
+            row = page.locator(f"#date-{event_id}")
+            alice_select = row.locator('.organizer-name:has-text("Alice") select.experience-edit')
+            expect(alice_select).to_be_visible()
+            # Échec réseau : retour « À préciser », nouveau choix possible.
+            page.route("**/api/events/*/registration/", lambda r: r.abort())
+            alice_select.select_option("beginner")
+            expect(page.locator("#toast.error")).to_be_visible(timeout=8000)
+            expect(alice_select).to_have_value("")
+            expect(alice_select).to_be_enabled()
+            page.unroute("**/api/events/*/registration/")
+            tracked.js_errors.clear()  # requête volontairement avortée
+            # Conflit : niveau modifié ailleurs pendant le focus.
+            alice_select.focus()
+            server.query(
+                "from planning.services import registrations\n"
+                "from planning.services.actors import Actor\n"
+                "from planning.models import Registration\n"
+                f"r = Registration.objects.get(event_id='{event_id}',"
+                " organizer__name='Alice')\n"
+                f"registrations.set_registration('{event_id}',"
+                " str(r.organizer_id), 'active', actor=Actor.bureau(),"
+                " experience_level='organizer', expected_version=r.version,"
+                " expected_event_version=r.event.version)"
+            )
+            alice_select.select_option("beginner")
+            expect(page.locator("#toast.error")).to_be_visible(timeout=8000)
+            # Pas d'écrasement : l'état frais s'affiche après rafraîchissement.
+            expect(names.locator(".exp-badge.exp-organizer")).to_be_visible(timeout=8000)
+            server_state = server.query(
+                "from planning.models import Registration\n"
+                f"r = Registration.objects.get(event_id='{event_id}',"
+                " organizer__name='Alice')\n"
+                "print(r.experience_level)"
+            )
+            assert server_state.strip() == "organizer", server_state
+            tracked.js_errors.clear()  # 409 attendue du conflit de versions
+            # Date annulée : select absent, badge texte en lecture seule.
+            server.query(
+                "from planning.services import events\n"
+                "from planning.services.actors import Actor\n"
+                "from planning.models import Event\n"
+                f"e = Event.objects.get(pk='{event_id}')\n"
+                "events.cancel_event(e.pk, actor=Actor.bureau(),"
+                " expected_version=e.version)"
+            )
+            page.evaluate("window.ath.live.refresh(true)")
+            expect(row.locator("select.experience-edit")).to_have_count(0, timeout=8000)
+            bob_badge = row.locator('.organizer-name:has-text("Bob") .exp-badge.exp-unknown')
+            expect(bob_badge).to_be_visible()
             tracked.assert_clean()
             browser.close()
 

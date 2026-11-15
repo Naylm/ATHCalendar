@@ -223,6 +223,9 @@
       li.querySelectorAll("button.remove-registration").forEach(function (b) {
         b.disabled = true;
       });
+      li.querySelectorAll("select.experience-edit").forEach(function (s) {
+        s.disabled = true;
+      });
       var form = li.querySelector(".name-registration-form");
       if (form) {
         form.dataset.locked = "1";
@@ -254,7 +257,11 @@
       return;
     }
     var focused = dst.contains(document.activeElement) ? document.activeElement : null;
-    if (focused && focused.classList.contains("event-type-select")) {
+    if (
+      focused &&
+      (focused.classList.contains("event-type-select") ||
+        focused.classList.contains("experience-edit"))
+    ) {
       deferred.set(dst, src);
       if (!dst._deferFocusout) {
         dst._deferFocusout = true;

@@ -34,7 +34,7 @@
     {% endif %}
   </div>
   <div class="event-organizers">
-    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span>{% if interactive and not reg.experience_level %}<select class="experience-edit exp-badge exp-unknown" data-organizer-id="{{ reg.organizer_id }}" data-registration-version="{{ reg.version }}" aria-label="Niveau de {{ reg.organizer_name }}" title="Préciser le niveau de {{ reg.organizer_name }}"><option value="" selected disabled>À préciser</option><option value="organizer">Habitué</option><option value="beginner">Débutant</option></select>{% else %}{% include "planning/_level_badge.html" with level=reg.experience_level %}{% endif %}{% if interactive %}<button type="button" class="remove-registration" data-organizer-id="{{ reg.organizer_id }}" data-registration-id="{{ reg.registration_id }}" data-registration-version="{{ reg.version }}" aria-label="Retirer {{ reg.organizer_name }}" title="Retirer">×</button>{% endif %}</span>{% endfor %}</p>
+    <p class="event-names">{% for reg in event.payload.organizers %}<span class="organizer-name"><span class="organizer-label">{{ reg.organizer_name }}</span>{% if interactive and not reg.experience_level %}<select class="experience-edit exp-badge exp-unknown" data-organizer-id="{{ reg.organizer_id }}" data-registration-version="{{ reg.version }}" aria-label="Niveau de {{ reg.organizer_name }}" title="Préciser le niveau de {{ reg.organizer_name }}"><option value="" selected disabled>À préciser</option><option value="organizer">Habitué(e)</option><option value="beginner">Débutant(e)</option></select>{% else %}{% include "planning/_level_badge.html" with level=reg.experience_level %}{% endif %}{% if interactive %}<button type="button" class="remove-registration" data-organizer-id="{{ reg.organizer_id }}" data-registration-id="{{ reg.registration_id }}" data-registration-version="{{ reg.version }}" aria-label="Retirer {{ reg.organizer_name }}" title="Retirer">×</button>{% endif %}</span>{% endfor %}</p>
     {% if event.payload.status == 'cancelled' %}
     <span class="tag tag-danger event-lock-status">Annulée</span>
     {% elif period.is_archived %}
@@ -56,11 +56,11 @@
         <div class="exp-options">
           <label class="exp-option">
             <input type="radio" name="experience_level" value="organizer">
-            <span>Habitué</span>
+            <span>Habitué(e)</span>
           </label>
           <label class="exp-option">
             <input type="radio" name="experience_level" value="beginner">
-            <span>Débutant</span>
+            <span>Débutant(e)</span>
           </label>
         </div>
       </fieldset>

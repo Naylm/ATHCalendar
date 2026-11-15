@@ -117,8 +117,8 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
                     # Deux choix textuels compacts, libellés visibles.
                     options = fieldset.locator("label.exp-option")
                     expect(options).to_have_count(2)
-                    expect(options.nth(0)).to_contain_text("Habitué")
-                    expect(options.nth(1)).to_contain_text("Débutant")
+                    expect(options.nth(0)).to_contain_text("Habitué(e)")
+                    expect(options.nth(1)).to_contain_text("Débutant(e)")
                     expect(fieldset.locator("legend")).to_have_text("Votre niveau")
                     org_radio = fieldset.locator("input[value=organizer]")
                     beg_radio = fieldset.locator("input[value=beginner]")
@@ -131,28 +131,30 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
                     # État sélectionné visible sur le libellé englobant.
                     selected = fieldset.locator("label.exp-option:has(input:checked)")
                     expect(selected).to_have_count(1)
-                    expect(selected).to_contain_text("Habitué")
+                    expect(selected).to_contain_text("Habitué(e)")
                     with expect_ok_response(page, "PUT", "/registration/"):
                         form.locator("button[type=submit]").click()
                     names = self._names(page, event_id)
                     expect(names).to_contain_text("Alice", timeout=8000)
                     badge = names.locator(".exp-badge.exp-organizer")
                     expect(badge).to_be_visible()
-                    expect(names.get_by_role("img", name="Habitué", exact=True)).to_have_count(1)
+                    expect(names.get_by_role("img", name="Habitué(e)", exact=True)).to_have_count(1)
                     assert badge.count() == 1
-                    expect(badge).to_have_text("Habitué")
+                    expect(badge).to_have_text("Habitué(e)")
                     assert badge.locator(".exp-chevrons").count() == 0
-                    expect(badge).to_have_attribute("title", "Habitué")
-                    assert badge.evaluate("el => el.getAttribute('aria-label')") == "Habitué"
+                    expect(badge).to_have_attribute("title", "Habitué(e)")
+                    assert badge.evaluate("el => el.getAttribute('aria-label')") == "Habitué(e)"
                     # Deux débutants côte à côte, visibles.
                     self._submit(page, event_id, "Bob", level="beginner")
                     self._submit(page, event_id, "Carol", level="beginner")
                     expect(names).to_contain_text("Carol", timeout=8000)
                     beginners = names.locator(".exp-badge.exp-beginner")
                     expect(beginners).to_have_count(2, timeout=8000)
-                    expect(beginners.first).to_have_text("Débutant")
-                    expect(beginners.first).to_have_attribute("title", "Débutant")
-                    expect(names.get_by_role("img", name="Débutant", exact=True)).to_have_count(2)
+                    expect(beginners.first).to_have_text("Débutant(e)")
+                    expect(beginners.first).to_have_attribute("title", "Débutant(e)")
+                    expect(names.get_by_role("img", name="Débutant(e)", exact=True)).to_have_count(
+                        2
+                    )
                     # Saisie active avec noms déjà affichés : les deux options
                     # restent sur la même ligne, alignées sur le champ nom.
                     row = page.locator(f"#date-{event_id}")
@@ -382,10 +384,12 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
             draft = page.locator(f"#date-{third_id} .name-registration-form input[name=name]")
             draft.fill("Brouillon")
             page.screenshot(path=str(SCREENSHOT_DIR / "exp-select-unknown-390.png"))
-            # Choix natif : Habitué, sans retrait ni nouvelle inscription.
+            # Choix natif : Habitué(e), sans retrait ni nouvelle inscription.
             with expect_ok_response(page, "PUT", "/registration/"):
                 select.select_option("organizer")
-            expect(names.locator(".exp-badge.exp-organizer")).to_have_text("Habitué", timeout=8000)
+            expect(names.locator(".exp-badge.exp-organizer")).to_have_text(
+                "Habitué(e)", timeout=8000
+            )
             expect(names.locator("select.experience-edit")).to_have_count(0)
             # Même inscription mise à jour : UUID, note et état inchangés.
             reg = server.query(
@@ -404,7 +408,7 @@ class ExperienceLevelsE2ETests(unittest.TestCase):
                 "print(r.state, r.experience_level)"
             )
             assert second_state.strip() == "active organizer", second_state
-            # Après sync : la seconde date affiche Habitué sans nouvelle action.
+            # Après sync : la seconde date affiche Habitué(e) sans nouvelle action.
             page.evaluate("window.ath.live.refresh(true)")
             second = self._names(page, second_id)
             expect(second.locator(".exp-badge.exp-organizer")).to_be_visible(timeout=8000)

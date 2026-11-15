@@ -191,8 +191,8 @@ class BureauRegistrationForm(forms.Form):
         required=False,
         choices=[
             ("", "Conserver le niveau"),
-            ("organizer", "Habitué"),
-            ("beginner", "Débutant"),
+            ("organizer", "Habitué(e)"),
+            ("beginner", "Débutant(e)"),
         ],
     )
     note = forms.CharField(label="Note", max_length=500, required=False)
